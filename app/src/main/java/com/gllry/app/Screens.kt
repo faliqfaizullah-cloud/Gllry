@@ -56,9 +56,15 @@ fun GllryApp(vm: GalleryVM, hasPermission: Boolean, onRequest: () -> Unit, onDel
     var viewerOpen by remember { mutableStateOf(false) }
     var viewerKey by remember { mutableStateOf(ALL) }
     var viewerStart by remember { mutableIntStateOf(0) }
+    var detailsOpen by remember { mutableStateOf(false) }
+    var detailsPhoto by remember { mutableStateOf<Photo?>(null) }
+    var editOpen by remember { mutableStateOf(false) }
+    var editPhoto by remember { mutableStateOf<Photo?>(null) }
 
     BackHandler(viewerOpen) { viewerOpen = false }
     BackHandler(!viewerOpen && albumOpen) { albumOpen = false }
+    BackHandler(detailsOpen) { detailsOpen = false }
+    BackHandler(editOpen) { editOpen = false }
 
     Box(Modifier.fillMaxSize()) {
         Speckle()
@@ -89,8 +95,24 @@ fun GllryApp(vm: GalleryVM, hasPermission: Boolean, onRequest: () -> Unit, onDel
             Viewer(
                 photos = vm.photosFor(viewerKey), start = viewerStart, isArchive = viewerKey == ARCHIVE,
                 onArchive = { vm.setArchived(it, viewerKey != ARCHIVE) },
-                onDelete = onDelete, onClose = { viewerOpen = false }
+                onDelete = onDelete, onClose = { viewerOpen = false },
+                onInfo = { detailsPhoto = it; detailsOpen = true },
+                onEdit = { editPhoto = it; editOpen = true }
             )
+        }
+
+        // photo details sheet
+        if (detailsOpen) {
+            detailsPhoto?.let { DetailsSheet(it) { detailsOpen = false } }
+        }
+
+        // in-app editor (saves a copy, original untouched)
+        AnimatedVisibility(
+            editOpen,
+            enter = slideInVertically(spring(0.85f, Spring.StiffnessLow)) { it } + fadeIn(),
+            exit = slideOutVertically(spring(stiffness = Spring.StiffnessMediumLow)) { it } + fadeOut()
+        ) {
+            editPhoto?.let { Editor(it, onClose = { editOpen = false }, onSaved = { vm.refresh(); editOpen = false }) }
         }
     }
 }
@@ -268,7 +290,8 @@ fun AlbumScreen(album: Album, onBack: () -> Unit, onPhoto: (Int) -> Unit) {
 @Composable
 fun Viewer(
     photos: List<Photo>, start: Int, isArchive: Boolean,
-    onArchive: (Photo) -> Unit, onDelete: (Photo) -> Unit, onClose: () -> Unit
+    onArchive: (Photo) -> Unit, onDelete: (Photo) -> Unit, onClose: () -> Unit,
+    onInfo: (Photo) -> Unit, onEdit: (Photo) -> Unit
 ) {
     if (photos.isEmpty()) { LaunchedEffect(Unit) { onClose() }; return }
     val state = rememberPagerState(initialPage = start.coerceIn(0, photos.lastIndex)) { photos.size }
@@ -311,6 +334,15 @@ fun Viewer(
                         fontFamily = Display, fontStyle = FontStyle.Italic, fontSize = 24.sp)
                 }
                 Spacer(Modifier.size(42.dp))
+            }
+        }
+        photos.getOrNull(state.currentPage)?.let { cur ->
+            Row(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 36.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                GlassPill("Details") { onInfo(cur) }
+                GlassPill("Edit") { onEdit(cur) }
             }
         }
     }

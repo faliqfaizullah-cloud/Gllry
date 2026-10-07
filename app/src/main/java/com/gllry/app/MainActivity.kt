@@ -28,33 +28,38 @@ class MainActivity : ComponentActivity() {
         get() = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES
         else Manifest.permission.READ_EXTERNAL_STORAGE
 
-    private val permLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-        granted = it
-        if (it) { vm.refresh(); DateWidget.updateAll(this) }
+    private fun has(p: String) = ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
+
+    private val permLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        granted = has(permName)
+        if (granted) { vm.refresh(); DateWidget.updateAll(this) }
     }
     private val deleteLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
         vm.refresh(); DateWidget.updateAll(this)
     }
 
+    private fun askPermissions() =
+        permLauncher.launch(arrayOf(permName, Manifest.permission.ACCESS_MEDIA_LOCATION))
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Full screen, edge to edge, bars hidden (swipe from edge to peek)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
-        granted = ContextCompat.checkSelfPermission(this, permName) == PackageManager.PERMISSION_GRANTED
-        if (granted) vm.refresh() else permLauncher.launch(permName)
+        granted = has(permName)
+        if (granted) vm.refresh()
+        // also asks for photo-location access (shown in Details) if it isn't granted yet
+        if (!granted || !has(Manifest.permission.ACCESS_MEDIA_LOCATION)) askPermissions()
 
         setContent {
             MaterialTheme(colorScheme = lightColorScheme()) {
                 GllryApp(
                     vm = vm,
                     hasPermission = granted,
-                    onRequest = { permLauncher.launch(permName) },
+                    onRequest = { askPermissions() },
                     onDelete = { p ->
-                        // Android asks the user to confirm; photo disappears once confirmed.
                         runCatching {
                             val pi = MediaStore.createDeleteRequest(contentResolver, listOf(p.uri))
                             deleteLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
