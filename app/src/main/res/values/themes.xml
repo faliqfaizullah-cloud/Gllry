@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.Gllry" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#F7F7F5</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>
