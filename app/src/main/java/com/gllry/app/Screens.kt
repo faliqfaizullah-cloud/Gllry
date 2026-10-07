@@ -167,7 +167,7 @@ fun Header(count: Int) {
                 .background(Brush.radialGradient(listOf(Color(0xFFFFE066), Color(0xFFFFB300))))
         )
         Text("Gllry", fontFamily = Display, fontSize = 30.sp, color = Color(0xFF2B3340), letterSpacing = (-0.5).sp)
-        Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFFFF2D2D)).padding(horizontal = 20.dp, vertical = 9.dp)) {
+        Box(Modifier.glass(RoundedCornerShape(50), Color(0xFFFF2D2D), 0.78f, 6.dp).padding(horizontal = 20.dp, vertical = 9.dp)) {
             Text("$count", color = Color.White, fontFamily = UiSans, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
         }
     }
@@ -209,8 +209,7 @@ fun FanStack(photos: List<Photo>, onTopClick: () -> Unit) {
 fun AlbumCard(a: Album, onClick: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().popIn().bounceClick(onClick)
-            .clip(RoundedCornerShape(28.dp))
-            .background(Brush.verticalGradient(listOf(Color(0xFFF5F3F1), Color(0xFFEEECEA))))
+            .glass(alpha = 0.5f)
             .padding(16.dp)
     ) {
         Box(Modifier.fillMaxWidth().height(112.dp)) {
@@ -263,7 +262,7 @@ fun AlbumScreen(album: Album, onBack: () -> Unit, onPhoto: (Int) -> Unit) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        Modifier.bounceClick(onBack).size(44.dp).clip(CircleShape).background(Color(0xFFEEECEA)),
+                        Modifier.bounceClick(onBack).size(44.dp).glass(CircleShape, elevation = 6.dp),
                         Alignment.Center
                     ) { Text("‹", fontSize = 28.sp, color = Color(0xFF111111)) }
                     Spacer(Modifier.width(14.dp))
@@ -323,7 +322,7 @@ fun Viewer(
                 Arrangement.SpaceBetween, Alignment.CenterVertically
             ) {
                 Box(
-                    Modifier.bounceClick(onClose).size(42.dp).clip(CircleShape).background(Color.White.copy(0.18f)),
+                    Modifier.bounceClick(onClose).size(42.dp).glass(CircleShape, Color.White, 0.16f, 0.dp),
                     Alignment.Center
                 ) { Text("✕", color = Color.White, fontSize = 15.sp) }
                 // Date in the same "sans + italic serif" pairing as the reference typography
@@ -405,7 +404,7 @@ fun SwipePage(photo: Photo, isArchive: Boolean, onArchive: (Photo) -> Unit, onDe
 fun HintPill(label: String, tint: Color, modifier: Modifier, progress: () -> Float) {
     Box(
         modifier.graphicsLayer { val p = progress(); alpha = p; scaleX = 0.7f + 0.3f * p; scaleY = scaleX }
-            .clip(RoundedCornerShape(50)).background(tint.copy(alpha = 0.22f))
+            .glass(RoundedCornerShape(50), tint, 0.22f, 0.dp)
             .padding(horizontal = 22.dp, vertical = 12.dp)
     ) { Text(label, color = tint, fontFamily = UiSans, fontWeight = FontWeight.Medium, fontSize = 16.sp) }
 }

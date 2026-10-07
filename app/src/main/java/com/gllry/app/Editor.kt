@@ -205,7 +205,7 @@ fun Editor(photo: Photo, onClose: () -> Unit, onSaved: () -> Unit) {
             Arrangement.SpaceBetween, Alignment.CenterVertically
         ) {
             Box(
-                Modifier.bounceClick(onClose).size(42.dp).clip(CircleShape).background(Color.White.copy(0.18f)),
+                Modifier.bounceClick(onClose).size(42.dp).glass(CircleShape, Color.White, 0.16f, 0.dp),
                 Alignment.Center
             ) { Text("✕", color = Color.White, fontSize = 15.sp) }
             Text("Edit", fontFamily = Display, fontStyle = FontStyle.Italic, fontSize = 28.sp, color = Color.White)
@@ -236,8 +236,8 @@ fun Editor(photo: Photo, onClose: () -> Unit, onSaved: () -> Unit) {
         Column(
             Modifier.fillMaxWidth()
                 .animateContentSize(spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow))
-                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                .background(Paper).padding(16.dp).padding(bottom = 18.dp)
+                .glass(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), Color.White, 0.9f, 16.dp)
+                .padding(16.dp).padding(bottom = 18.dp)
         ) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
                 listOf("Crop", "Adjust", "Filters").forEachIndexed { i, n -> Chip(n, tab == i) { tab = i } }

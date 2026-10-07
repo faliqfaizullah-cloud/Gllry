@@ -43,8 +43,7 @@ import java.time.format.TextStyle as DayStyle
 @Composable
 fun GlassPill(label: String, onClick: () -> Unit) {
     Box(
-        Modifier.bounceClick(onClick).clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = 0.20f))
+        Modifier.bounceClick(onClick).glass(RoundedCornerShape(50), Color.White, 0.16f, 0.dp)
             .padding(horizontal = 28.dp, vertical = 13.dp)
     ) { Text(label, color = Color.White, fontFamily = UiSans, fontWeight = FontWeight.Medium, fontSize = 15.sp) }
 }
@@ -130,8 +129,7 @@ fun DetailsSheet(photo: Photo, onDismiss: () -> Unit) {
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .graphicsLayer { translationY = dragY.value.coerceAtLeast(0f) }
-                .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
-                .background(Paper)
+                .glass(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp), Color.White, 0.86f, 16.dp)
         ) {
             val ms = (info?.taken?.takeIf { it > 0 }) ?: (photo.added * 1000)
             val dt = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault())

@@ -10,7 +10,21 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -63,15 +77,34 @@ fun Modifier.popIn(delayMs: Long = 0): Modifier = composed {
     graphicsLayer { scaleX = s.value; scaleY = s.value; alpha = a.value }
 }
 
-// ---- Speckled paper background (as in Pool) ------------------------------------------
+// ---- Glassmorphism ------------------------------------------------------------------
+// frosted translucent fill + soft light border + faint blue shadow
+fun Modifier.glass(
+    shape: Shape = RoundedCornerShape(28.dp),
+    tint: Color = Color.White,
+    alpha: Float = 0.55f,
+    elevation: Dp = 10.dp
+): Modifier = this
+    .shadow(elevation, shape, ambientColor = Color(0x1A1F3FE0), spotColor = Color(0x261F3FE0))
+    .clip(shape)
+    .background(Brush.linearGradient(listOf(tint.copy(alpha = (alpha + 0.2f).coerceAtMost(1f)), tint.copy(alpha = alpha))))
+    .border(
+        1.dp,
+        Brush.linearGradient(listOf(Color.White.copy(0.95f), Color.White.copy(0.18f), Color.White.copy(0.65f))),
+        shape
+    )
+
+// ---- Soft aurora background (blurred colour orbs behind the glass) -------------------
 @Composable
 fun Speckle() {
-    val dots = remember { val r = Random(7); List(260) { Offset(r.nextFloat(), r.nextFloat()) to r.nextFloat() } }
     Box(Modifier.fillMaxSize().background(Paper)) {
-        Canvas(Modifier.fillMaxSize()) {
-            dots.forEach { (o, s) ->
-                drawCircle(Color(0xFF8A8A85).copy(alpha = 0.10f), 1.2f + s * 1.4f, Offset(o.x * size.width, o.y * size.height))
-            }
-        }
+        Orb(PoolBlue.copy(alpha = 0.30f), 360, Modifier.align(Alignment.TopStart).offset((-110).dp, (-90).dp))
+        Orb(Color(0xFFC9B6FF).copy(alpha = 0.55f), 300, Modifier.align(Alignment.CenterEnd).offset(110.dp, (-40).dp))
+        Orb(Color(0xFFFFC9A8).copy(alpha = 0.50f), 340, Modifier.align(Alignment.BottomStart).offset((-90).dp, 110.dp))
     }
+}
+
+@Composable
+private fun Orb(c: Color, size: Int, m: Modifier) {
+    Box(m.size(size.dp).blur(80.dp, BlurredEdgeTreatment.Unbounded).background(c, CircleShape))
 }
