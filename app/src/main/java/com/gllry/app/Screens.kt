@@ -53,12 +53,16 @@ import kotlin.math.abs
 // Root
 // =====================================================================================
 @Composable
-fun GllryApp(vm: GalleryVM, hasPermission: Boolean, onRequest: () -> Unit, onDelete: (Photo) -> Unit) {
+fun GllryApp(
+    vm: GalleryVM, hasPermission: Boolean, onRequest: () -> Unit, onDelete: (Photo) -> Unit,
+    onImport: () -> Unit, onRecord: () -> Unit
+) {
     var albumOpen by remember { mutableStateOf(false) }
     var albumKey by remember { mutableStateOf(ALL) }
     var viewerOpen by remember { mutableStateOf(false) }
     var viewerKey by remember { mutableStateOf(ALL) }
     var viewerStart by remember { mutableIntStateOf(0) }
+    var addOpen by remember { mutableStateOf(false) }
     var detailsOpen by remember { mutableStateOf(false) }
     var detailsPhoto by remember { mutableStateOf<Photo?>(null) }
     var editOpen by remember { mutableStateOf(false) }
@@ -78,6 +82,27 @@ fun GllryApp(vm: GalleryVM, hasPermission: Boolean, onRequest: () -> Unit, onDel
             Home(vm, albums,
                 onAlbum = { albumKey = it; albumOpen = true },
                 onPhoto = { k, i -> viewerKey = k; viewerStart = i; viewerOpen = true })
+
+            // add / save media into Gllry
+            Column(
+                Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 28.dp),
+                horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                AnimatedVisibility(
+                    addOpen,
+                    enter = fadeIn() + scaleIn(spring(Spring.DampingRatioMediumBouncy), initialScale = 0.6f),
+                    exit = fadeOut() + scaleOut(targetScale = 0.6f)
+                ) {
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        GlassPill("Import photos & videos") { addOpen = false; onImport() }
+                        GlassPill("Record video") { addOpen = false; onRecord() }
+                    }
+                }
+                Box(
+                    Modifier.size(58.dp).bounceClick { addOpen = !addOpen }.glass(CircleShape, Color.White, 0.16f, 14.dp),
+                    Alignment.Center
+                ) { Text(if (addOpen) "✕" else "+", color = Ink, fontSize = 26.sp, fontWeight = FontWeight.Light) }
+            }
 
             AnimatedVisibility(
                 albumOpen,
@@ -216,7 +241,7 @@ fun FanStack(photos: List<Photo>, onTop: (Int) -> Unit) {
         Alignment.Center
     ) {
         photos.forEachIndexed { pos, p ->
-            key(p.id) {
+            key(p.key) {
                 val k = (pos - index + n) % n
                 val kk = minOf(k, 4)
                 val spec = spring<Float>(0.72f, Spring.StiffnessLow)
@@ -237,7 +262,10 @@ fun FanStack(photos: List<Photo>, onTop: (Int) -> Unit) {
                     .shadow(16.dp, RoundedCornerShape(22.dp))
                     .clip(RoundedCornerShape(22.dp))
                 if (k == 0) m = m.bounceClick { onTop(pos) }
-                AsyncImage(p.uri, null, m, contentScale = ContentScale.Crop)
+                Box(m) {
+                    AsyncImage(p.uri, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    if (p.isVideo) PlayBadge(Modifier.align(Alignment.Center))
+                }
             }
         }
     }
@@ -321,12 +349,11 @@ fun AlbumScreen(album: Album, onBack: () -> Unit, onPhoto: (Int) -> Unit) {
                     }
                 }
             }
-            itemsIndexed(album.photos, key = { _, p -> p.id }) { i, p ->
-                AsyncImage(
-                    p.uri, null,
-                    Modifier.aspectRatio(1f).popIn((i % 9) * 30L).bounceClick { onPhoto(i) }.clip(RoundedCornerShape(22.dp)),
-                    contentScale = ContentScale.Crop
-                )
+            itemsIndexed(album.photos, key = { _, p -> p.key }) { i, p ->
+                Box(Modifier.aspectRatio(1f).popIn((i % 9) * 30L).bounceClick { onPhoto(i) }.clip(RoundedCornerShape(22.dp))) {
+                    AsyncImage(p.uri, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    if (p.isVideo) DurationTag(p.duration, Modifier.align(Alignment.BottomStart).padding(8.dp))
+                }
             }
         }
     }
@@ -350,7 +377,7 @@ fun Viewer(
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         HorizontalPager(
             state, Modifier.fillMaxSize(), pageSpacing = 16.dp,
-            key = { photos.getOrNull(it)?.id ?: it },
+            key = { photos.getOrNull(it)?.key ?: it },
             flingBehavior = PagerDefaults.flingBehavior(state, snapAnimationSpec = spring(0.72f, Spring.StiffnessMediumLow))
         ) { page ->
             val off = (state.currentPage - page) + state.currentPageOffsetFraction
@@ -361,7 +388,7 @@ fun Viewer(
                 rotationY = off * -14f
                 cameraDistance = 14f * density
             }) {
-                SwipePage(photos[page], isArchive, onArchive, onDelete)
+                SwipePage(photos[page], page == state.currentPage, isArchive, onArchive, onDelete)
             }
         }
         photos.getOrNull(state.currentPage)?.let { cur ->
@@ -390,14 +417,14 @@ fun Viewer(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 GlassPill("Details") { onInfo(cur) }
-                GlassPill("Edit") { onEdit(cur) }
+                if (!cur.isVideo) GlassPill("Edit") { onEdit(cur) }
             }
         }
     }
 }
 
 @Composable
-fun SwipePage(photo: Photo, isArchive: Boolean, onArchive: (Photo) -> Unit, onDelete: (Photo) -> Unit) {
+fun SwipePage(photo: Photo, active: Boolean, isArchive: Boolean, onArchive: (Photo) -> Unit, onDelete: (Photo) -> Unit) {
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     val off = remember { Animatable(0f) }
@@ -431,15 +458,14 @@ fun SwipePage(photo: Photo, isArchive: Boolean, onArchive: (Photo) -> Unit, onDe
             }
         )
     ) {
-        AsyncImage(
-            photo.uri, null, contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize().graphicsLayer {
-                val p = (abs(off.value) / (th * 3)).coerceIn(0f, 1f)
-                translationY = off.value
-                scaleX = 1f - 0.22f * p; scaleY = scaleX
-                alpha = 1f - 0.4f * p
-            }
-        )
+        val lay = Modifier.fillMaxSize().graphicsLayer {
+            val p = (abs(off.value) / (th * 3)).coerceIn(0f, 1f)
+            translationY = off.value
+            scaleX = 1f - 0.22f * p; scaleY = scaleX
+            alpha = 1f - 0.4f * p
+        }
+        if (photo.isVideo) VideoPlayer(photo, active, lay)
+        else AsyncImage(photo.uri, null, contentScale = ContentScale.Fit, modifier = lay)
         HintPill(if (isArchive) "↑  Restore" else "↑  Archive", Color.White, Modifier.align(Alignment.TopCenter).padding(top = 110.dp)) {
             (-off.value / th).coerceIn(0f, 1f)
         }

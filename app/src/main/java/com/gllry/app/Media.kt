@@ -12,9 +12,20 @@ import androidx.lifecycle.AndroidViewModel
 
 const val ALL = "__all"
 const val ARCHIVE = "__archive"
+const val VIDEOS = "__videos"
 
-data class Photo(val id: Long, val album: String, val added: Long) {
-    val uri: Uri get() = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+data class Photo(
+    val id: Long, val album: String, val added: Long,
+    val isVideo: Boolean = false, val duration: Long = 0L
+) {
+    /** unique across photos AND videos (their ids live in separate tables) */
+    val key: String get() = if (isVideo) "v$id" else "i$id"
+    /** photos keep the plain id so older archived photos stay archived */
+    val archiveKey: String get() = if (isVideo) "v$id" else id.toString()
+    val uri: Uri
+        get() = ContentUris.withAppendedId(
+            if (isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id
+        )
 }
 
 data class Album(val key: String, val title: String, val photos: List<Photo>)
@@ -26,22 +37,28 @@ object Store {
 
     fun queryPhotos(c: Context): List<Photo> {
         val out = ArrayList<Photo>()
-        val proj = arrayOf(
-            MediaStore.Images.Media._ID,
-            MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
-            MediaStore.Images.Media.DATE_ADDED
-        )
         runCatching {
             c.contentResolver.query(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI, proj, null, null,
-                "${MediaStore.Images.Media.DATE_ADDED} DESC"
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME, MediaStore.Images.Media.DATE_ADDED),
+                null, null, "${MediaStore.Images.Media.DATE_ADDED} DESC"
             )?.use { cur ->
-                while (cur.moveToNext()) {
-                    out += Photo(cur.getLong(0), cur.getString(1) ?: "Other", cur.getLong(2))
-                }
+                while (cur.moveToNext()) out += Photo(cur.getLong(0), cur.getString(1) ?: "Other", cur.getLong(2))
             }
         }
-        return out
+        runCatching {
+            c.contentResolver.query(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                arrayOf(
+                    MediaStore.Video.Media._ID, MediaStore.Video.Media.BUCKET_DISPLAY_NAME,
+                    MediaStore.Video.Media.DATE_ADDED, MediaStore.Video.Media.DURATION
+                ),
+                null, null, "${MediaStore.Video.Media.DATE_ADDED} DESC"
+            )?.use { cur ->
+                while (cur.moveToNext()) out += Photo(cur.getLong(0), cur.getString(1) ?: "Videos", cur.getLong(2), true, cur.getLong(3))
+            }
+        }
+        return out.sortedByDescending { it.added }
     }
 }
 
@@ -55,25 +72,28 @@ class GalleryVM(app: Application) : AndroidViewModel(app) {
     }
 
     fun setArchived(p: Photo, on: Boolean) {
-        archived = if (on) archived + p.id.toString() else archived - p.id.toString()
+        archived = if (on) archived + p.archiveKey else archived - p.archiveKey
         Store.saveArchived(getApplication(), archived)
         DateWidget.updateAll(getApplication())
     }
 
     fun photosFor(key: String): List<Photo> = when (key) {
-        ALL -> all.filter { it.id.toString() !in archived }
-        ARCHIVE -> all.filter { it.id.toString() in archived }
-        else -> all.filter { it.album == key && it.id.toString() !in archived }
+        ALL -> all.filter { it.archiveKey !in archived }
+        ARCHIVE -> all.filter { it.archiveKey in archived }
+        VIDEOS -> all.filter { it.isVideo && it.archiveKey !in archived }
+        else -> all.filter { it.album == key && it.archiveKey !in archived }
     }
 
     fun albums(): List<Album> {
         val live = photosFor(ALL)
+        val vids = photosFor(VIDEOS)
         val arch = photosFor(ARCHIVE)
         val buckets = live.groupBy { it.album }
             .map { Album(it.key, it.key, it.value) }
             .sortedByDescending { it.photos.size }
         return buildList {
             add(Album(ALL, "All", live))
+            if (vids.isNotEmpty()) add(Album(VIDEOS, "Videos", vids))
             if (arch.isNotEmpty()) add(Album(ARCHIVE, "Archive", arch))
             addAll(buckets)
         }

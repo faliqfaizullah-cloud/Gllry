@@ -168,6 +168,7 @@ fun DetailsSheet(photo: Photo, onDismiss: () -> Unit) {
                     InfoRow("Name", i.name)
                     if (i.width > 0) InfoRow("Resolution", "${i.width} × ${i.height}  ·  ${"%.1f".format(i.width.toLong() * i.height / 1e6)} MP")
                     InfoRow("Size", fmtSize(i.sizeBytes))
+                    if (photo.isVideo) InfoRow("Duration", fmtDuration(photo.duration))
                     if (i.mime.isNotEmpty()) InfoRow("Type", i.mime.substringAfter('/').uppercase())
                     if (i.folder.isNotEmpty()) InfoRow("Folder", i.folder)
 
