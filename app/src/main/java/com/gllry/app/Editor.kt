@@ -236,7 +236,7 @@ fun Editor(photo: Photo, onClose: () -> Unit, onSaved: () -> Unit) {
         Column(
             Modifier.fillMaxWidth()
                 .animateContentSize(spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow))
-                .glass(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), Color.White, 0.9f, 16.dp)
+                .glass(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), Color(0xFF14141C), 0.80f, 16.dp)
                 .padding(16.dp).padding(bottom = 18.dp)
         ) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
@@ -282,7 +282,7 @@ fun Editor(photo: Photo, onClose: () -> Unit, onSaved: () -> Unit) {
                                 )
                             }
                             Spacer(Modifier.height(6.dp))
-                            Text(p.name, fontFamily = UiSans, fontSize = 12.sp, color = Color(0xFF333333))
+                            Text(p.name, fontFamily = UiSans, fontSize = 12.sp, color = Ink)
                         }
                     }
                 }
@@ -295,27 +295,27 @@ fun Editor(photo: Photo, onClose: () -> Unit, onSaved: () -> Unit) {
 private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         Modifier.bounceClick(onClick).clip(RoundedCornerShape(50))
-            .background(if (selected) PoolBlue else Color(0xFFEAE8E6))
+            .background(if (selected) PoolBlue else Color.White.copy(alpha = 0.10f))
             .padding(horizontal = 20.dp, vertical = 10.dp)
     ) {
         Text(label, fontFamily = UiSans, fontWeight = FontWeight.Medium, fontSize = 14.sp,
-            color = if (selected) Color.White else Color(0xFF333333))
+            color = if (selected) Color.White else Ink)
     }
 }
 
 @Composable
 private fun Tool(label: String, onClick: () -> Unit) {
     Box(
-        Modifier.bounceClick(onClick).clip(RoundedCornerShape(18.dp)).background(Color(0xFFEAE8E6))
+        Modifier.bounceClick(onClick).clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = 0.10f))
             .padding(horizontal = 18.dp, vertical = 12.dp)
-    ) { Text(label, fontFamily = UiSans, fontSize = 14.sp, color = Color(0xFF111111)) }
+    ) { Text(label, fontFamily = UiSans, fontSize = 14.sp, color = Ink) }
 }
 
 @Composable
 private fun SliderRow(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
     val haptic = LocalHapticFeedback.current
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.width(92.dp), fontFamily = UiSans, fontSize = 14.sp, color = Color(0xFF444444))
+        Text(label, Modifier.width(92.dp), fontFamily = UiSans, fontSize = 14.sp, color = Ink)
         Slider(
             value, onChange, Modifier.weight(1f), valueRange = range,
             onValueChangeFinished = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) },

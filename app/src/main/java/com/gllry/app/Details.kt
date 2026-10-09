@@ -129,7 +129,7 @@ fun DetailsSheet(photo: Photo, onDismiss: () -> Unit) {
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .graphicsLayer { translationY = dragY.value.coerceAtLeast(0f) }
-                .glass(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp), Color.White, 0.86f, 16.dp)
+                .glass(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp), Color(0xFF14141C), 0.80f, 16.dp)
         ) {
             val ms = (info?.taken?.takeIf { it > 0 }) ?: (photo.added * 1000)
             val dt = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault())
@@ -145,11 +145,11 @@ fun DetailsSheet(photo: Photo, onDismiss: () -> Unit) {
                 ).padding(top = 12.dp, start = 24.dp, end = 24.dp, bottom = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(Modifier.size(44.dp, 5.dp).clip(RoundedCornerShape(50)).background(Color(0xFFCFCFCB)))
+                Box(Modifier.size(44.dp, 5.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.3f)))
                 Spacer(Modifier.height(16.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                     Text(dt.dayOfWeek.getDisplayName(DayStyle.SHORT, Locale.getDefault()),
-                        fontFamily = UiSans, fontWeight = FontWeight.Light, fontSize = 30.sp, color = Color(0xFF2B3340))
+                        fontFamily = UiSans, fontWeight = FontWeight.Light, fontSize = 30.sp, color = Ink)
                     Text(" ${dt.dayOfMonth} ${dt.month.getDisplayName(DayStyle.SHORT, Locale.getDefault())}.",
                         fontFamily = Display, fontStyle = FontStyle.Italic, fontSize = 30.sp, color = PoolBlue)
                 }
@@ -198,6 +198,6 @@ private fun Section(title: String) {
 private fun InfoRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
         Text(label, Modifier.width(104.dp), fontFamily = UiSans, fontSize = 14.sp, color = Color(0xFF9A9A9A))
-        Text(value, Modifier.weight(1f), fontFamily = UiSans, fontSize = 15.sp, color = Color(0xFF111111))
+        Text(value, Modifier.weight(1f), fontFamily = UiSans, fontSize = 15.sp, color = Ink)
     }
 }

@@ -44,8 +44,9 @@ import kotlin.random.Random
 // replace these two lines with FontFamily(Font(R.font.instrument_serif)) etc.
 val Display: FontFamily = FontFamily.Serif
 val UiSans: FontFamily = FontFamily.SansSerif
-val PoolBlue = Color(0xFF1F3FE0)
-val Paper = Color(0xFFF7F7F5)
+val PoolBlue = Color(0xFF7D93FF)
+val Ink = Color(0xFFF2F2F7)
+val Paper = Color(0xFF0B0B12)
 
 // ---- Bounce + haptic press -----------------------------------------------------------
 fun Modifier.bounceClick(onClick: () -> Unit): Modifier = composed {
@@ -82,7 +83,7 @@ fun Modifier.popIn(delayMs: Long = 0): Modifier = composed {
 fun Modifier.glass(
     shape: Shape = RoundedCornerShape(28.dp),
     tint: Color = Color.White,
-    alpha: Float = 0.55f,
+    alpha: Float = 0.10f,
     elevation: Dp = 10.dp
 ): Modifier = this
     .shadow(elevation, shape, ambientColor = Color(0x1A1F3FE0), spotColor = Color(0x261F3FE0))
@@ -98,9 +99,9 @@ fun Modifier.glass(
 @Composable
 fun Speckle() {
     Box(Modifier.fillMaxSize().background(Paper)) {
-        Orb(PoolBlue.copy(alpha = 0.30f), 360, Modifier.align(Alignment.TopStart).offset((-110).dp, (-90).dp))
-        Orb(Color(0xFFC9B6FF).copy(alpha = 0.55f), 300, Modifier.align(Alignment.CenterEnd).offset(110.dp, (-40).dp))
-        Orb(Color(0xFFFFC9A8).copy(alpha = 0.50f), 340, Modifier.align(Alignment.BottomStart).offset((-90).dp, 110.dp))
+        Orb(Color(0xFF3D5AFE).copy(alpha = 0.45f), 360, Modifier.align(Alignment.TopStart).offset((-110).dp, (-90).dp))
+        Orb(Color(0xFF7C4DFF).copy(alpha = 0.40f), 300, Modifier.align(Alignment.CenterEnd).offset(110.dp, (-40).dp))
+        Orb(Color(0xFF00B8D4).copy(alpha = 0.22f), 340, Modifier.align(Alignment.BottomStart).offset((-90).dp, 110.dp))
     }
 }
 

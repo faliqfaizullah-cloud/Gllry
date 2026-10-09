@@ -4,6 +4,9 @@ package com.gllry.app
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.zIndex
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
@@ -125,7 +128,7 @@ fun PermissionGate(onRequest: () -> Unit) {
         Text("Organize what matters", fontFamily = UiSans, fontSize = 16.sp, color = Color.Gray)
         Spacer(Modifier.height(28.dp))
         Box(
-            Modifier.bounceClick(onRequest).clip(RoundedCornerShape(50)).background(Color(0xFF111111))
+            Modifier.bounceClick(onRequest).glass(RoundedCornerShape(50), elevation = 0.dp)
                 .padding(horizontal = 28.dp, vertical = 14.dp)
         ) { Text("Allow photo access", color = Color.White, fontFamily = UiSans, fontWeight = FontWeight.Medium) }
     }
@@ -145,7 +148,7 @@ fun Home(vm: GalleryVM, albums: List<Album>, onAlbum: (String) -> Unit, onPhoto:
         modifier = Modifier.fillMaxSize()
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) { Header(live.size) }
-        item(span = { GridItemSpan(maxLineSpan) }) { FanStack(live.take(5)) { onPhoto(ALL, 0) } }
+        item(span = { GridItemSpan(maxLineSpan) }) { FanStack(live.take(12)) { onPhoto(ALL, it) } }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Text(
                 "Organize what\nmatters", fontFamily = Display, fontSize = 38.sp, lineHeight = 40.sp,
@@ -166,7 +169,7 @@ fun Header(count: Int) {
                 .clip(CircleShape)
                 .background(Brush.radialGradient(listOf(Color(0xFFFFE066), Color(0xFFFFB300))))
         )
-        Text("Gllry", fontFamily = Display, fontSize = 30.sp, color = Color(0xFF2B3340), letterSpacing = (-0.5).sp)
+        Text("Gllry", fontFamily = Display, fontSize = 30.sp, color = Ink, letterSpacing = (-0.5).sp)
         Box(Modifier.glass(RoundedCornerShape(50), Color(0xFFFF2D2D), 0.78f, 6.dp).padding(horizontal = 20.dp, vertical = 9.dp)) {
             Text("$count", color = Color.White, fontFamily = UiSans, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
         }
@@ -174,34 +177,80 @@ fun Header(count: Int) {
 }
 
 @Composable
-fun FanStack(photos: List<Photo>, onTopClick: () -> Unit) {
-    if (photos.isEmpty()) return
+fun FanStack(photos: List<Photo>, onTop: (Int) -> Unit) {
+    val n = photos.size
+    if (n == 0) return
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    val dens = LocalDensity.current
+    val threshold = with(dens) { 110.dp.toPx() }
+    val fly = with(dens) { 520.dp.toPx() }
+    var index by remember { mutableIntStateOf(0) }
+    val drag = remember { Animatable(0f) }
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { enter.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow)) }
+    LaunchedEffect(n) { if (index >= n) index = 0 }
     val rot = listOf(0f, -9f, 8f, -15f, 14f)
     val dx = listOf(0f, -64f, 64f, -96f, 96f)
     val dy = listOf(0f, 14f, 10f, 26f, 22f)
-    Box(Modifier.fillMaxWidth().height(330.dp), Alignment.Center) {
-        for (i in photos.indices.reversed()) {
-            val p = photos[i]
-            val prog = remember(p.id) { Animatable(0f) }
-            LaunchedEffect(p.id) {
-                delay(i * 70L)
-                prog.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow))
-            }
-            val mod = Modifier
-                .graphicsLayer {
-                    rotationZ = rot[i] * prog.value
-                    translationX = dx[i] * density * prog.value
-                    translationY = (dy[i] * density * prog.value) + (1f - prog.value) * 500f
-                    alpha = prog.value.coerceIn(0f, 1f)
+
+    // slide left/right (or fling) to send the top card to the back of the deck
+    Box(
+        Modifier.fillMaxWidth().height(330.dp).draggable(
+            rememberDraggableState { d -> scope.launch { drag.snapTo(drag.value + d) } },
+            Orientation.Horizontal,
+            onDragStopped = { v ->
+                scope.launch {
+                    if (n > 1 && (abs(drag.value) > threshold || abs(v) > 1500f)) {
+                        val dir = if (abs(v) > 1500f) (if (v > 0) 1f else -1f) else (if (drag.value > 0) 1f else -1f)
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        drag.animateTo(dir * fly, spring(stiffness = Spring.StiffnessMedium))
+                        index = (index + 1) % n
+                        drag.snapTo(0f)
+                    } else {
+                        drag.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow))
+                    }
                 }
-                .size(172.dp, 232.dp)
-                .shadow(16.dp, RoundedCornerShape(22.dp))
-                .clip(RoundedCornerShape(22.dp))
-            AsyncImage(p.uri, null, if (i == 0) mod.bounceClick(onTopClick) else mod, contentScale = ContentScale.Crop)
+            }
+        ),
+        Alignment.Center
+    ) {
+        photos.forEachIndexed { pos, p ->
+            key(p.id) {
+                val k = (pos - index + n) % n
+                val kk = minOf(k, 4)
+                val spec = spring<Float>(0.72f, Spring.StiffnessLow)
+                val tRot by animateFloatAsState(rot[kk], spec, label = "r")
+                val tDx by animateFloatAsState(dx[kk], spec, label = "x")
+                val tDy by animateFloatAsState(dy[kk], spec, label = "y")
+                val tA by animateFloatAsState(if (k < 5) 1f else 0f, spring(stiffness = Spring.StiffnessLow), label = "a")
+                var m = Modifier
+                    .zIndex((n - k).toFloat())
+                    .graphicsLayer {
+                        val top = k == 0
+                        rotationZ = (tRot + if (top) drag.value / 28f else 0f) * enter.value
+                        translationX = (tDx * density) * enter.value + if (top) drag.value else 0f
+                        translationY = tDy * density * enter.value + (1f - enter.value) * 500f
+                        alpha = tA * enter.value.coerceIn(0f, 1f)
+                    }
+                    .size(172.dp, 232.dp)
+                    .shadow(16.dp, RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(22.dp))
+                if (k == 0) m = m.bounceClick { onTop(pos) }
+                AsyncImage(p.uri, null, m, contentScale = ContentScale.Crop)
+            }
         }
     }
-    Box(Modifier.fillMaxWidth(), Alignment.Center) {
-        Box(Modifier.size(44.dp, 5.dp).clip(RoundedCornerShape(50)).background(Color(0xFFDEDEDB)))
+    Row(Modifier.fillMaxWidth().padding(top = 10.dp), Arrangement.Center, Alignment.CenterVertically) {
+        val dots = minOf(n, 8)
+        for (d in 0 until dots) {
+            val active = d == index % dots
+            val w by animateDpAsState(if (active) 20.dp else 6.dp, spring(Spring.DampingRatioMediumBouncy), label = "dot")
+            Box(
+                Modifier.padding(horizontal = 3.dp).size(w, 6.dp).clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = if (active) 0.85f else 0.25f))
+            )
+        }
     }
 }
 
@@ -209,17 +258,17 @@ fun FanStack(photos: List<Photo>, onTopClick: () -> Unit) {
 fun AlbumCard(a: Album, onClick: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().popIn().bounceClick(onClick)
-            .glass(alpha = 0.5f)
+            .glass(alpha = 0.10f)
             .padding(16.dp)
     ) {
         Box(Modifier.fillMaxWidth().height(112.dp)) {
             MiniGrid(a.photos, Modifier.align(Alignment.TopStart))
             Canvas(Modifier.align(Alignment.TopEnd).size(4.dp, 18.dp)) {
-                for (k in 0..2) drawCircle(Color(0xFF555555), 2.dp.toPx(), Offset(size.width / 2, 2.dp.toPx() + k * 7.dp.toPx()))
+                for (k in 0..2) drawCircle(Color(0xFFC4C4D2), 2.dp.toPx(), Offset(size.width / 2, 2.dp.toPx() + k * 7.dp.toPx()))
             }
         }
         Spacer(Modifier.height(14.dp))
-        Text(a.title, fontFamily = UiSans, fontWeight = FontWeight.Medium, fontSize = 19.sp, color = Color(0xFF111111), maxLines = 1)
+        Text(a.title, fontFamily = UiSans, fontWeight = FontWeight.Medium, fontSize = 19.sp, color = Ink, maxLines = 1)
         Text(
             if (a.photos.size == 1) "1 memory" else "${a.photos.size} memories",
             fontFamily = UiSans, fontSize = 13.sp, color = Color(0xFF9A9A9A)
@@ -236,7 +285,7 @@ fun MiniGrid(photos: List<Photo>, modifier: Modifier = Modifier) {
                 val shape = RoundedCornerShape(16.dp)
                 when {
                     idx == 3 && photos.size > 4 -> Box(
-                        Modifier.size(52.dp).clip(shape).background(Color.White), Alignment.Center
+                        Modifier.size(52.dp).clip(shape).background(Color.White.copy(alpha = 0.12f)), Alignment.Center
                     ) { Text("+${photos.size - 3}", fontSize = 13.sp, color = Color(0xFF9A9A9A), fontFamily = UiSans) }
                     idx < photos.size -> AsyncImage(photos[idx].uri, null, Modifier.size(52.dp).clip(shape), contentScale = ContentScale.Crop)
                     else -> Spacer(Modifier.size(52.dp))
@@ -264,10 +313,10 @@ fun AlbumScreen(album: Album, onBack: () -> Unit, onPhoto: (Int) -> Unit) {
                     Box(
                         Modifier.bounceClick(onBack).size(44.dp).glass(CircleShape, elevation = 6.dp),
                         Alignment.Center
-                    ) { Text("‹", fontSize = 28.sp, color = Color(0xFF111111)) }
+                    ) { Text("‹", fontSize = 28.sp, color = Ink) }
                     Spacer(Modifier.width(14.dp))
                     Column {
-                        Text(album.title, fontFamily = Display, fontSize = 32.sp, letterSpacing = (-1).sp, color = Color(0xFF2B3340))
+                        Text(album.title, fontFamily = Display, fontSize = 32.sp, letterSpacing = (-1).sp, color = Ink)
                         Text("${album.photos.size} memories", fontFamily = UiSans, fontSize = 13.sp, color = Color(0xFF9A9A9A))
                     }
                 }
