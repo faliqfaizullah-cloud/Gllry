@@ -28,6 +28,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 class MainActivity : ComponentActivity() {
     private val vm: GalleryVM by viewModels()
     private var granted by mutableStateOf(false)
+    private var crash by mutableStateOf<String?>(null)
 
     private val permName
         get() = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES
@@ -89,6 +90,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+
     private fun record() {
         val v = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, "Gllry_${System.currentTimeMillis()}.mp4")
@@ -106,6 +109,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        crash = CrashReporter.read(this)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -113,14 +117,18 @@ class MainActivity : ComponentActivity() {
         }
         granted = has(permName)
         if (granted) vm.refresh()
-        if (!hasAll()) permLauncher.launch(allPerms)
+        if (!hasAll()) runCatching { permLauncher.launch(allPerms) }
 
         setContent {
             MaterialTheme(colorScheme = lightColorScheme()) {
+              val report = crash
+              if (report != null) {
+                CrashScreen(report) { CrashReporter.clear(this@MainActivity); crash = null }
+              } else {
                 GllryApp(
                     vm = vm,
                     hasPermission = granted,
-                    onRequest = { permLauncher.launch(allPerms) },
+                    onRequest = { runCatching { permLauncher.launch(allPerms) } },
                     onDelete = { p ->
                         runCatching {
                             val pi = MediaStore.createDeleteRequest(contentResolver, listOf(p.uri))
@@ -128,10 +136,13 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onImport = {
-                        picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                        runCatching {
+                            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                        }.onFailure { toast("Couldn't open the picker") }
                     },
-                    onRecord = { record() }
+                    onRecord = { runCatching { record() }.onFailure { toast("Couldn't open the camera") } }
                 )
+              }
             }
         }
     }

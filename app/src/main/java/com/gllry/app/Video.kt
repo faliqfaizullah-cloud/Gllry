@@ -51,9 +51,22 @@ fun DurationTag(ms: Long, modifier: Modifier = Modifier) {
 fun VideoPlayer(photo: Photo, active: Boolean, modifier: Modifier = Modifier, showControls: Boolean = true) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val player = remember(photo.key) {
-        ExoPlayer.Builder(ctx).build().apply { setMediaItem(MediaItem.fromUri(photo.uri)); prepare() }
+        runCatching {
+            ExoPlayer.Builder(ctx).build().apply { setMediaItem(MediaItem.fromUri(photo.uri)); prepare() }
+        }.getOrNull()
     }
-    DisposableEffect(player) { onDispose { player.release() } }
+    if (player == null) {
+        Box(modifier, Alignment.Center) {
+            Text("Can't play this video", color = Color.White, fontFamily = UiSans, fontSize = 14.sp)
+        }
+    } else {
+        VideoPlayerUi(player, photo, active, modifier, showControls)
+    }
+}
+
+@Composable
+private fun VideoPlayerUi(player: ExoPlayer, photo: Photo, active: Boolean, modifier: Modifier, showControls: Boolean) {
+    DisposableEffect(player) { onDispose { runCatching { player.release() } } }
 
     var playing by remember { mutableStateOf(false) }
     var ended by remember { mutableStateOf(false) }
@@ -71,23 +84,28 @@ fun VideoPlayer(photo: Photo, active: Boolean, modifier: Modifier = Modifier, sh
             }
         }
         player.addListener(l)
-        onDispose { player.removeListener(l) }
+        onDispose { runCatching { player.removeListener(l) } }
     }
-    LaunchedEffect(active) { if (active) player.play() else player.pause() }
-    LaunchedEffect(player) { while (true) { pos = player.currentPosition; delay(200) } }
-    LaunchedEffect(muted) { player.volume = if (muted) 0f else 1f }
+    LaunchedEffect(active) { runCatching { if (active) player.play() else player.pause() } }
+    LaunchedEffect(player) { while (true) { runCatching { pos = player.currentPosition }; delay(200) } }
+    LaunchedEffect(muted) { runCatching { player.volume = if (muted) 0f else 1f } }
     LaunchedEffect(playing, controls) { if (playing && controls) { delay(2500); controls = false } }
 
     fun toggle() {
-        if (ended) { player.seekTo(0); player.play() }
-        else if (player.isPlaying) player.pause() else player.play()
+        runCatching {
+            if (ended) { player.seekTo(0); player.play() }
+            else if (player.isPlaying) player.pause() else player.play()
+        }
     }
 
     val src = remember { MutableInteractionSource() }
     Box(if (showControls) modifier.clickable(src, null) { controls = !controls } else modifier) {
         AndroidView(
             factory = { c ->
-                (LayoutInflater.from(c).inflate(R.layout.player_view, null) as PlayerView).also { it.player = player }
+                val v: android.view.View = runCatching {
+                    (LayoutInflater.from(c).inflate(R.layout.player_view, null) as PlayerView).also { it.player = player }
+                }.getOrElse { android.view.View(c) }
+                v
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -109,7 +127,7 @@ fun VideoPlayer(photo: Photo, active: Boolean, modifier: Modifier = Modifier, sh
                 Text(fmtDuration(pos), color = Color.White, fontSize = 12.sp, fontFamily = UiSans)
                 Slider(
                     value = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f,
-                    onValueChange = { v -> pos = (v * dur).toLong(); player.seekTo(pos) },
+                    onValueChange = { v -> pos = (v * dur).toLong(); runCatching { player.seekTo(pos) } },
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                     colors = SliderDefaults.colors(
                         thumbColor = Color.White, activeTrackColor = Color.White,

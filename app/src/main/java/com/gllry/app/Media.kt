@@ -60,7 +60,7 @@ object Store {
                 while (cur.moveToNext()) out += Photo(cur.getLong(0), cur.getString(1) ?: "Videos", cur.getLong(2), true, cur.getLong(3))
             }
         }
-        return out.sortedByDescending { it.added }
+        return out.sortedByDescending { it.added }.distinctBy { it.key }
     }
 }
 
@@ -98,6 +98,6 @@ class GalleryVM(app: Application) : AndroidViewModel(app) {
             if (vids.isNotEmpty()) add(Album(VIDEOS, "Videos", vids))
             if (arch.isNotEmpty()) add(Album(ARCHIVE, "Archive", arch))
             addAll(buckets)
-        }
+        }.distinctBy { it.key }
     }
 }

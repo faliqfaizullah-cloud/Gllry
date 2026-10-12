@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -129,6 +131,7 @@ fun StackGallery(vm: GalleryVM, isDefault: Boolean, onToggleDefault: () -> Unit,
     val n = photos.size
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
+    val ctx = LocalContext.current
 
     val pos = remember { Animatable(0f) }          // scroll position in cards
     val stackS = remember { Animatable(0f) }       // 0 = fullscreen card, 1 = tilted stack
@@ -248,6 +251,7 @@ fun StackGallery(vm: GalleryVM, isDefault: Boolean, onToggleDefault: () -> Unit,
                     onDragStarted = { moving = true; hint = false; overview = false },
                     onDragStopped = { v ->
                         scope.launch {
+                          try {
                             if (pos.value > last + 0.55f) { enterPile(); return@launch }
                             pos.updateBounds(-0.4f, last + 0.9f)
                             pos.animateDecay(
@@ -259,6 +263,11 @@ fun StackGallery(vm: GalleryVM, isDefault: Boolean, onToggleDefault: () -> Unit,
                             val target = pos.value.roundToInt().coerceIn(0, last.toInt())
                             pos.animateTo(target.toFloat(), spring(0.78f, Spring.StiffnessLow))
                             moving = false
+                          } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                          } catch (e: Exception) {
+                            pos.updateBounds(null, null); moving = false
+                          }
                         }
                     }
                 )
@@ -305,7 +314,10 @@ fun StackGallery(vm: GalleryVM, isDefault: Boolean, onToggleDefault: () -> Unit,
                         if (p.isVideo && calm && i == current) {
                             VideoPlayer(p, true, Modifier.fillMaxSize(), showControls = false)
                         } else {
-                            AsyncImage(p.uri, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                            AsyncImage(
+                                remember(p.key) { ImageRequest.Builder(ctx).data(p.uri).size(1080, 1920).crossfade(false).build() },
+                                null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop
+                            )
                             if (p.isVideo) PlayBadge(Modifier.align(Alignment.Center), 64)
                         }
                     }
