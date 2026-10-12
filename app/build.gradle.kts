@@ -9,8 +9,8 @@ android {
         applicationId = "com.gllry.app"
         minSdk = 30
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.4"
+        versionCode = 4
+        versionName = "1.5"
     }
     buildFeatures { compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }

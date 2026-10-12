@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.zIndex
 import androidx.compose.animation.core.Spring
@@ -63,6 +64,9 @@ fun GllryApp(
     var viewerKey by remember { mutableStateOf(ALL) }
     var viewerStart by remember { mutableIntStateOf(0) }
     var addOpen by remember { mutableStateOf(false) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var stackMode by remember { mutableStateOf(Store.stackDefault(ctx)) }
+    var stackDefault by remember { mutableStateOf(Store.stackDefault(ctx)) }
     var detailsOpen by remember { mutableStateOf(false) }
     var detailsPhoto by remember { mutableStateOf<Photo?>(null) }
     var editOpen by remember { mutableStateOf(false) }
@@ -81,7 +85,8 @@ fun GllryApp(
             val albums = remember(vm.all, vm.archived) { vm.albums() }
             Home(vm, albums,
                 onAlbum = { albumKey = it; albumOpen = true },
-                onPhoto = { k, i -> viewerKey = k; viewerStart = i; viewerOpen = true })
+                onPhoto = { k, i -> viewerKey = k; viewerStart = i; viewerOpen = true },
+                onSecret = { stackMode = true })
 
             // add / save media into Gllry
             Column(
@@ -113,6 +118,19 @@ fun GllryApp(
                     onBack = { albumOpen = false },
                     onPhoto = { i -> viewerKey = albumKey; viewerStart = i; viewerOpen = true })
             }
+        }
+
+        // Stack style (hold "Gllry" for 3 s, or set as default)
+        AnimatedVisibility(
+            stackMode && hasPermission,
+            enter = fadeIn(tween(450)) + scaleIn(tween(500), initialScale = 1.08f),
+            exit = fadeOut(tween(300)) + scaleOut(tween(300), targetScale = 1.05f)
+        ) {
+            StackGallery(
+                vm, stackDefault,
+                onToggleDefault = { stackDefault = !stackDefault; Store.setStackDefault(ctx, stackDefault) },
+                onExit = { stackMode = false }
+            )
         }
 
         AnimatedVisibility(
@@ -163,7 +181,7 @@ fun PermissionGate(onRequest: () -> Unit) {
 // Home  (Pool-style header + fanned stack + rounded album tiles)
 // =====================================================================================
 @Composable
-fun Home(vm: GalleryVM, albums: List<Album>, onAlbum: (String) -> Unit, onPhoto: (String, Int) -> Unit) {
+fun Home(vm: GalleryVM, albums: List<Album>, onAlbum: (String) -> Unit, onPhoto: (String, Int) -> Unit, onSecret: () -> Unit) {
     val live = albums.firstOrNull { it.key == ALL }?.photos ?: emptyList()
     LazyVerticalGrid(
         GridCells.Fixed(2),
@@ -172,7 +190,7 @@ fun Home(vm: GalleryVM, albums: List<Album>, onAlbum: (String) -> Unit, onPhoto:
         verticalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) { Header(live.size) }
+        item(span = { GridItemSpan(maxLineSpan) }) { Header(live.size, onSecret) }
         item(span = { GridItemSpan(maxLineSpan) }) { FanStack(live.take(12)) { onPhoto(ALL, it) } }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Text(
@@ -186,7 +204,7 @@ fun Home(vm: GalleryVM, albums: List<Album>, onAlbum: (String) -> Unit, onPhoto:
 }
 
 @Composable
-fun Header(count: Int) {
+fun Header(count: Int, onSecret: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
         Box(
             Modifier.size(42.dp)
@@ -194,7 +212,7 @@ fun Header(count: Int) {
                 .clip(CircleShape)
                 .background(Brush.radialGradient(listOf(Color(0xFFFFE066), Color(0xFFFFB300))))
         )
-        Text("Gllry", fontFamily = Display, fontSize = 30.sp, color = Ink, letterSpacing = (-0.5).sp)
+        HoldTitle(onSecret)
         Box(Modifier.glass(RoundedCornerShape(50), Color(0xFFFF2D2D), 0.78f, 6.dp).padding(horizontal = 20.dp, vertical = 9.dp)) {
             Text("$count", color = Color.White, fontFamily = UiSans, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
         }

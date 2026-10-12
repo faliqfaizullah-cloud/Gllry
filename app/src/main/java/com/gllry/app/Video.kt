@@ -48,7 +48,7 @@ fun DurationTag(ms: Long, modifier: Modifier = Modifier) {
 
 /** In-app video player (ExoPlayer on a TextureView so it follows the viewer's swipe animations). */
 @Composable
-fun VideoPlayer(photo: Photo, active: Boolean, modifier: Modifier = Modifier) {
+fun VideoPlayer(photo: Photo, active: Boolean, modifier: Modifier = Modifier, showControls: Boolean = true) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val player = remember(photo.key) {
         ExoPlayer.Builder(ctx).build().apply { setMediaItem(MediaItem.fromUri(photo.uri)); prepare() }
@@ -83,14 +83,15 @@ fun VideoPlayer(photo: Photo, active: Boolean, modifier: Modifier = Modifier) {
         else if (player.isPlaying) player.pause() else player.play()
     }
 
-    Box(modifier.clickable(remember { MutableInteractionSource() }, null) { controls = !controls }) {
+    val src = remember { MutableInteractionSource() }
+    Box(if (showControls) modifier.clickable(src, null) { controls = !controls } else modifier) {
         AndroidView(
             factory = { c ->
                 (LayoutInflater.from(c).inflate(R.layout.player_view, null) as PlayerView).also { it.player = player }
             },
             modifier = Modifier.fillMaxSize()
         )
-        AnimatedVisibility(controls || !playing, Modifier.align(Alignment.Center), enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(showControls && (controls || !playing), Modifier.align(Alignment.Center), enter = fadeIn(), exit = fadeOut()) {
             Box(
                 Modifier.size(76.dp).bounceClick { toggle() }.glass(CircleShape, Color.White, 0.22f, 0.dp),
                 Alignment.Center
@@ -98,7 +99,7 @@ fun VideoPlayer(photo: Photo, active: Boolean, modifier: Modifier = Modifier) {
                 Text(if (ended) "↻" else if (playing) "❚❚" else "▶", color = Color.White, fontSize = 24.sp)
             }
         }
-        AnimatedVisibility(controls || !playing, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(showControls && (controls || !playing), Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 104.dp)
                     .glass(RoundedCornerShape(50), Color.White, 0.14f, 0.dp)

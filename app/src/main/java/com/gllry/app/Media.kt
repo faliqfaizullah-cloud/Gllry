@@ -34,6 +34,8 @@ object Store {
     private fun p(c: Context) = c.getSharedPreferences("gllry", Context.MODE_PRIVATE)
     fun archived(c: Context): Set<String> = p(c).getStringSet("archived", emptySet()) ?: emptySet()
     fun saveArchived(c: Context, s: Set<String>) = p(c).edit().putStringSet("archived", HashSet(s)).apply()
+    fun stackDefault(c: Context): Boolean = p(c).getBoolean("stack_default", false)
+    fun setStackDefault(c: Context, v: Boolean) = p(c).edit().putBoolean("stack_default", v).apply()
 
     fun queryPhotos(c: Context): List<Photo> {
         val out = ArrayList<Photo>()
