@@ -16,12 +16,15 @@ const val VIDEOS = "__videos"
 
 data class Photo(
     val id: Long, val album: String, val added: Long,
-    val isVideo: Boolean = false, val duration: Long = 0L
+    val isVideo: Boolean = false, val duration: Long = 0L,
+    val w: Int = 0, val h: Int = 0, val taken: Long = 0L, val name: String = ""
 ) {
     /** unique across photos AND videos (their ids live in separate tables) */
     val key: String get() = if (isVideo) "v$id" else "i$id"
     /** photos keep the plain id so older archived photos stay archived */
     val archiveKey: String get() = if (isVideo) "v$id" else id.toString()
+    /** best timestamp in milliseconds */
+    val time: Long get() = if (taken > 0) taken else added * 1000
     val uri: Uri
         get() = ContentUris.withAppendedId(
             if (isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id
@@ -42,10 +45,20 @@ object Store {
         runCatching {
             c.contentResolver.query(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME, MediaStore.Images.Media.DATE_ADDED),
+                arrayOf(
+                    MediaStore.Images.Media._ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
+                    MediaStore.Images.Media.DATE_ADDED, MediaStore.Images.Media.DATE_TAKEN,
+                    MediaStore.Images.Media.WIDTH, MediaStore.Images.Media.HEIGHT,
+                    MediaStore.Images.Media.DISPLAY_NAME
+                ),
                 null, null, "${MediaStore.Images.Media.DATE_ADDED} DESC"
             )?.use { cur ->
-                while (cur.moveToNext()) out += Photo(cur.getLong(0), cur.getString(1) ?: "Other", cur.getLong(2))
+                while (cur.moveToNext()) {
+                    out += Photo(
+                        cur.getLong(0), cur.getString(1) ?: "Other", cur.getLong(2),
+                        false, 0L, cur.getInt(4), cur.getInt(5), cur.getLong(3), cur.getString(6) ?: ""
+                    )
+                }
             }
         }
         runCatching {
@@ -53,14 +66,21 @@ object Store {
                 MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
                 arrayOf(
                     MediaStore.Video.Media._ID, MediaStore.Video.Media.BUCKET_DISPLAY_NAME,
-                    MediaStore.Video.Media.DATE_ADDED, MediaStore.Video.Media.DURATION
+                    MediaStore.Video.Media.DATE_ADDED, MediaStore.Video.Media.DURATION,
+                    MediaStore.Video.Media.DATE_TAKEN, MediaStore.Video.Media.WIDTH,
+                    MediaStore.Video.Media.HEIGHT, MediaStore.Video.Media.DISPLAY_NAME
                 ),
                 null, null, "${MediaStore.Video.Media.DATE_ADDED} DESC"
             )?.use { cur ->
-                while (cur.moveToNext()) out += Photo(cur.getLong(0), cur.getString(1) ?: "Videos", cur.getLong(2), true, cur.getLong(3))
+                while (cur.moveToNext()) {
+                    out += Photo(
+                        cur.getLong(0), cur.getString(1) ?: "Videos", cur.getLong(2),
+                        true, cur.getLong(3), cur.getInt(5), cur.getInt(6), cur.getLong(4), cur.getString(7) ?: ""
+                    )
+                }
             }
         }
-        return out.sortedByDescending { it.added }.distinctBy { it.key }
+        return out.sortedByDescending { it.time }.distinctBy { it.key }
     }
 }
 

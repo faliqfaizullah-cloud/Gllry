@@ -9,6 +9,7 @@ class GllryApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         CrashReporter.install(this)
+        AppFonts.init(this)
     }
 
     /** Teaches Coil to show a frame of each video as its thumbnail. */

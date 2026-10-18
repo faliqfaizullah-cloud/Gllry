@@ -119,7 +119,7 @@ private fun VideoPlayerUi(player: ExoPlayer, photo: Photo, active: Boolean, modi
         }
         AnimatedVisibility(showControls && (controls || !playing), Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 104.dp)
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 70.dp)
                     .glass(RoundedCornerShape(50), Color.White, 0.14f, 0.dp)
                     .padding(horizontal = 18.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically

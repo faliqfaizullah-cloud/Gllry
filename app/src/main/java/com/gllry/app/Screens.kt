@@ -1,53 +1,44 @@
 @file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.gllry.app
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.ui.zIndex
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.*
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerDefaults
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.TextStyle
-import java.util.Locale
 import kotlin.math.abs
 
 // =====================================================================================
@@ -58,69 +49,47 @@ fun GllryApp(
     vm: GalleryVM, hasPermission: Boolean, onRequest: () -> Unit, onDelete: (Photo) -> Unit,
     onImport: () -> Unit, onRecord: () -> Unit
 ) {
-    var albumOpen by remember { mutableStateOf(false) }
-    var albumKey by remember { mutableStateOf(ALL) }
-    var viewerOpen by remember { mutableStateOf(false) }
-    var viewerKey by remember { mutableStateOf(ALL) }
-    var viewerStart by remember { mutableIntStateOf(0) }
-    var addOpen by remember { mutableStateOf(false) }
-    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val ctx = LocalContext.current
     var stackMode by remember { mutableStateOf(Store.stackDefault(ctx)) }
     var stackDefault by remember { mutableStateOf(Store.stackDefault(ctx)) }
+    var tab by remember { mutableIntStateOf(0) }
+    var searchOpen by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var viewer by remember { mutableStateOf<ViewerCtx?>(null) }
+    var viewerOpen by remember { mutableStateOf(false) }
     var detailsOpen by remember { mutableStateOf(false) }
     var detailsPhoto by remember { mutableStateOf<Photo?>(null) }
     var editOpen by remember { mutableStateOf(false) }
     var editPhoto by remember { mutableStateOf<Photo?>(null) }
 
+    // later handlers win: search < viewer < details < editor
+    BackHandler(searchOpen && !viewerOpen) { searchOpen = false; query = "" }
     BackHandler(viewerOpen) { viewerOpen = false }
-    BackHandler(!viewerOpen && albumOpen) { albumOpen = false }
     BackHandler(detailsOpen) { detailsOpen = false }
     BackHandler(editOpen) { editOpen = false }
 
-    Box(Modifier.fillMaxSize()) {
-        Speckle()
+    val index = remember(vm.all) { vm.all.associateBy { it.key } }
+    val vphotos = remember(index, vm.archived, viewer) {
+        viewer?.let { c -> c.keys.mapNotNull { index[it] }.filter { c.isArchive || it.archiveKey !in vm.archived } } ?: emptyList()
+    }
+
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        Backdrop()
         if (!hasPermission) {
             PermissionGate(onRequest)
         } else {
-            val albums = remember(vm.all, vm.archived) { vm.albums() }
-            Home(vm, albums,
-                onAlbum = { albumKey = it; albumOpen = true },
-                onPhoto = { k, i -> viewerKey = k; viewerStart = i; viewerOpen = true },
-                onSecret = { stackMode = true })
-
-            // add / save media into Gllry
-            Column(
-                Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 28.dp),
-                horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                AnimatedVisibility(
-                    addOpen,
-                    enter = fadeIn() + scaleIn(spring(Spring.DampingRatioMediumBouncy), initialScale = 0.6f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.6f)
-                ) {
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        GlassPill("Import photos & videos") { addOpen = false; onImport() }
-                        GlassPill("Record video") { addOpen = false; onRecord() }
-                    }
-                }
-                Box(
-                    Modifier.size(58.dp).bounceClick { addOpen = !addOpen }.glass(CircleShape, Color.White, 0.16f, 14.dp),
-                    Alignment.Center
-                ) { Text(if (addOpen) "✕" else "+", color = Ink, fontSize = 26.sp, fontWeight = FontWeight.Light) }
-            }
-
-            AnimatedVisibility(
-                albumOpen,
-                enter = slideInVertically(spring(0.8f, Spring.StiffnessLow)) { it / 2 } + fadeIn() + scaleIn(initialScale = 0.9f),
-                exit = slideOutVertically(spring(stiffness = Spring.StiffnessMediumLow)) { it / 2 } + fadeOut() + scaleOut(targetScale = 0.9f)
-            ) {
-                AlbumScreen(albums.firstOrNull { it.key == albumKey } ?: Album(albumKey, "", emptyList()),
-                    onBack = { albumOpen = false },
-                    onPhoto = { i -> viewerKey = albumKey; viewerStart = i; viewerOpen = true })
+            val blurR by animateDpAsState(if (viewerOpen) 22.dp else 0.dp, Motion.spatial<Dp>(), label = "bg-blur")
+            Box(Modifier.fillMaxSize().blur(blurR)) {
+                GalleryScreen(
+                    vm = vm, tab = tab, onTab = { tab = it; searchOpen = false; query = "" },
+                    searchOpen = searchOpen, onSearchOpen = { searchOpen = it }, query = query, onQuery = { query = it },
+                    onOpen = { c -> viewer = c; viewerOpen = true },
+                    onSecret = { stackMode = true }, onImport = onImport, onRecord = onRecord
+                )
             }
         }
 
-        // Stack style (hold "Gllry" for 3 s, or set as default)
+        // Stack style (hold the "Gllry" title for 3 s, or set it as default)
         AnimatedVisibility(
             stackMode && hasPermission,
             enter = fadeIn(tween(450)) + scaleIn(tween(500), initialScale = 1.08f),
@@ -135,16 +104,18 @@ fun GllryApp(
 
         AnimatedVisibility(
             viewerOpen,
-            enter = scaleIn(spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow), initialScale = 0.78f) + fadeIn(),
-            exit = scaleOut(targetScale = 0.9f) + fadeOut()
+            enter = fadeIn(Motion.effects<Float>()) + scaleIn(Motion.spatial<Float>(), initialScale = 0.92f),
+            exit = fadeOut(Motion.effects<Float>()) + scaleOut(targetScale = 0.95f)
         ) {
-            Viewer(
-                photos = vm.photosFor(viewerKey), start = viewerStart, isArchive = viewerKey == ARCHIVE,
-                onArchive = { vm.setArchived(it, viewerKey != ARCHIVE) },
-                onDelete = onDelete, onClose = { viewerOpen = false },
-                onInfo = { detailsPhoto = it; detailsOpen = true },
-                onEdit = { editPhoto = it; editOpen = true }
-            )
+            viewer?.let { c ->
+                AlbumViewer(
+                    ctx = c, photos = vphotos,
+                    onArchive = { vm.setArchived(it, !c.isArchive) },
+                    onDelete = onDelete, onClose = { viewerOpen = false },
+                    onInfo = { detailsPhoto = it; detailsOpen = true },
+                    onEdit = { editPhoto = it; editOpen = true }
+                )
+            }
         }
 
         // photo details sheet
@@ -166,287 +137,29 @@ fun GllryApp(
 @Composable
 fun PermissionGate(onRequest: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(32.dp), Arrangement.Center, Alignment.CenterHorizontally) {
-        Text("Gllry", fontFamily = Display, fontSize = 56.sp, color = PoolBlue, letterSpacing = (-2).sp)
-        Spacer(Modifier.height(8.dp))
-        Text("Organize what matters", fontFamily = UiSans, fontSize = 16.sp, color = Color.Gray)
+        Text("Gllry", fontFamily = AppFonts.ui, fontWeight = FontWeight.Medium, fontSize = 44.sp, color = Color.White)
+        Spacer(Modifier.height(6.dp))
+        Text("allow photo access to begin", fontFamily = AppFonts.pixel, fontSize = 12.sp, color = Color.White.copy(alpha = 0.5f))
         Spacer(Modifier.height(28.dp))
         Box(
-            Modifier.bounceClick(onRequest).glass(RoundedCornerShape(50), elevation = 0.dp)
+            Modifier.bounceClick(onRequest).glass(RoundedCornerShape(50), Color(0xFF1B1B1E), 0.6f, 8.dp)
                 .padding(horizontal = 28.dp, vertical = 14.dp)
         ) { Text("Allow photo access", color = Color.White, fontFamily = UiSans, fontWeight = FontWeight.Medium) }
     }
 }
 
 // =====================================================================================
-// Home  (Pool-style header + fanned stack + rounded album tiles)
+// One page of the viewer: swipe UP = archive, swipe DOWN = delete (system confirm)
 // =====================================================================================
 @Composable
-fun Home(vm: GalleryVM, albums: List<Album>, onAlbum: (String) -> Unit, onPhoto: (String, Int) -> Unit, onSecret: () -> Unit) {
-    val live = albums.firstOrNull { it.key == ALL }?.photos ?: emptyList()
-    LazyVerticalGrid(
-        GridCells.Fixed(2),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 44.dp, bottom = 48.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }) { Header(live.size, onSecret) }
-        item(span = { GridItemSpan(maxLineSpan) }) { FanStack(live.take(12)) { onPhoto(ALL, it) } }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Text(
-                "Organize what\nmatters", fontFamily = Display, fontSize = 38.sp, lineHeight = 40.sp,
-                letterSpacing = (-1.8).sp, color = PoolBlue, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp)
-            )
-        }
-        items(albums, key = { it.key }) { a -> AlbumCard(a) { onAlbum(a.key) } }
-    }
-}
-
-@Composable
-fun Header(count: Int, onSecret: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-        Box(
-            Modifier.size(42.dp)
-                .shadow(22.dp, CircleShape, ambientColor = PoolBlue, spotColor = PoolBlue)
-                .clip(CircleShape)
-                .background(Brush.radialGradient(listOf(Color(0xFFFFE066), Color(0xFFFFB300))))
-        )
-        HoldTitle(onSecret)
-        Box(Modifier.glass(RoundedCornerShape(50), Color(0xFFFF2D2D), 0.78f, 6.dp).padding(horizontal = 20.dp, vertical = 9.dp)) {
-            Text("$count", color = Color.White, fontFamily = UiSans, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-        }
-    }
-}
-
-@Composable
-fun FanStack(photos: List<Photo>, onTop: (Int) -> Unit) {
-    val n = photos.size
-    if (n == 0) return
-    val scope = rememberCoroutineScope()
-    val haptic = LocalHapticFeedback.current
-    val dens = LocalDensity.current
-    val threshold = with(dens) { 110.dp.toPx() }
-    val fly = with(dens) { 520.dp.toPx() }
-    var index by remember { mutableIntStateOf(0) }
-    val drag = remember { Animatable(0f) }
-    val enter = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { enter.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow)) }
-    LaunchedEffect(n) { if (index >= n) index = 0 }
-    val rot = listOf(0f, -9f, 8f, -15f, 14f)
-    val dx = listOf(0f, -64f, 64f, -96f, 96f)
-    val dy = listOf(0f, 14f, 10f, 26f, 22f)
-
-    // slide left/right (or fling) to send the top card to the back of the deck
-    Box(
-        Modifier.fillMaxWidth().height(330.dp).draggable(
-            rememberDraggableState { d -> scope.launch { drag.snapTo(drag.value + d) } },
-            Orientation.Horizontal,
-            onDragStopped = { v ->
-                scope.launch {
-                    if (n > 1 && (abs(drag.value) > threshold || abs(v) > 1500f)) {
-                        val dir = if (abs(v) > 1500f) (if (v > 0) 1f else -1f) else (if (drag.value > 0) 1f else -1f)
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        drag.animateTo(dir * fly, spring(stiffness = Spring.StiffnessMedium))
-                        index = (index + 1) % n
-                        drag.snapTo(0f)
-                    } else {
-                        drag.animateTo(0f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow))
-                    }
-                }
-            }
-        ),
-        Alignment.Center
-    ) {
-        photos.forEachIndexed { pos, p ->
-            key(p.key) {
-                val k = (pos - index + n) % n
-                val kk = minOf(k, 4)
-                val spec = spring<Float>(0.72f, Spring.StiffnessLow)
-                val tRot by animateFloatAsState(rot[kk], spec, label = "r")
-                val tDx by animateFloatAsState(dx[kk], spec, label = "x")
-                val tDy by animateFloatAsState(dy[kk], spec, label = "y")
-                val tA by animateFloatAsState(if (k < 5) 1f else 0f, spring(stiffness = Spring.StiffnessLow), label = "a")
-                var m = Modifier
-                    .zIndex((n - k).toFloat())
-                    .graphicsLayer {
-                        val top = k == 0
-                        rotationZ = (tRot + if (top) drag.value / 28f else 0f) * enter.value
-                        translationX = (tDx * density) * enter.value + if (top) drag.value else 0f
-                        translationY = tDy * density * enter.value + (1f - enter.value) * 500f
-                        alpha = tA * enter.value.coerceIn(0f, 1f)
-                    }
-                    .size(172.dp, 232.dp)
-                    .shadow(16.dp, RoundedCornerShape(22.dp))
-                    .clip(RoundedCornerShape(22.dp))
-                if (k == 0) m = m.bounceClick { onTop(pos) }
-                Box(m) {
-                    AsyncImage(p.uri, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    if (p.isVideo) PlayBadge(Modifier.align(Alignment.Center))
-                }
-            }
-        }
-    }
-    Row(Modifier.fillMaxWidth().padding(top = 10.dp), Arrangement.Center, Alignment.CenterVertically) {
-        val dots = minOf(n, 8)
-        for (d in 0 until dots) {
-            val active = d == index % dots
-            val w by animateDpAsState(if (active) 20.dp else 6.dp, spring(Spring.DampingRatioMediumBouncy), label = "dot")
-            Box(
-                Modifier.padding(horizontal = 3.dp).size(w, 6.dp).clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = if (active) 0.85f else 0.25f))
-            )
-        }
-    }
-}
-
-@Composable
-fun AlbumCard(a: Album, onClick: () -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().popIn().bounceClick(onClick)
-            .glass(alpha = 0.10f)
-            .padding(16.dp)
-    ) {
-        Box(Modifier.fillMaxWidth().height(112.dp)) {
-            MiniGrid(a.photos, Modifier.align(Alignment.TopStart))
-            Canvas(Modifier.align(Alignment.TopEnd).size(4.dp, 18.dp)) {
-                for (k in 0..2) drawCircle(Color(0xFFC4C4D2), 2.dp.toPx(), Offset(size.width / 2, 2.dp.toPx() + k * 7.dp.toPx()))
-            }
-        }
-        Spacer(Modifier.height(14.dp))
-        Text(a.title, fontFamily = UiSans, fontWeight = FontWeight.Medium, fontSize = 19.sp, color = Ink, maxLines = 1)
-        Text(
-            if (a.photos.size == 1) "1 memory" else "${a.photos.size} memories",
-            fontFamily = UiSans, fontSize = 13.sp, color = Color(0xFF9A9A9A)
-        )
-    }
-}
-
-@Composable
-fun MiniGrid(photos: List<Photo>, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (r in 0..1) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (c in 0..1) {
-                val idx = r * 2 + c
-                val shape = RoundedCornerShape(16.dp)
-                when {
-                    idx == 3 && photos.size > 4 -> Box(
-                        Modifier.size(52.dp).clip(shape).background(Color.White.copy(alpha = 0.12f)), Alignment.Center
-                    ) { Text("+${photos.size - 3}", fontSize = 13.sp, color = Color(0xFF9A9A9A), fontFamily = UiSans) }
-                    idx < photos.size -> AsyncImage(photos[idx].uri, null, Modifier.size(52.dp).clip(shape), contentScale = ContentScale.Crop)
-                    else -> Spacer(Modifier.size(52.dp))
-                }
-            }
-        }
-    }
-}
-
-// =====================================================================================
-// Album grid
-// =====================================================================================
-@Composable
-fun AlbumScreen(album: Album, onBack: () -> Unit, onPhoto: (Int) -> Unit) {
-    Box(Modifier.fillMaxSize().background(Paper)) {
-        Speckle()
-        LazyVerticalGrid(
-            GridCells.Fixed(3),
-            contentPadding = PaddingValues(14.dp, 44.dp, 14.dp, 40.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.bounceClick(onBack).size(44.dp).glass(CircleShape, elevation = 6.dp),
-                        Alignment.Center
-                    ) { Text("‹", fontSize = 28.sp, color = Ink) }
-                    Spacer(Modifier.width(14.dp))
-                    Column {
-                        Text(album.title, fontFamily = Display, fontSize = 32.sp, letterSpacing = (-1).sp, color = Ink)
-                        Text("${album.photos.size} memories", fontFamily = UiSans, fontSize = 13.sp, color = Color(0xFF9A9A9A))
-                    }
-                }
-            }
-            itemsIndexed(album.photos, key = { _, p -> p.key }) { i, p ->
-                Box(Modifier.aspectRatio(1f).popIn((i % 9) * 30L).bounceClick { onPhoto(i) }.clip(RoundedCornerShape(22.dp))) {
-                    AsyncImage(p.uri, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    if (p.isVideo) DurationTag(p.duration, Modifier.align(Alignment.BottomStart).padding(8.dp))
-                }
-            }
-        }
-    }
-}
-
-// =====================================================================================
-// Full-screen viewer: fluid horizontal slide, swipe UP = archive, swipe DOWN = delete
-// =====================================================================================
-@Composable
-fun Viewer(
-    photos: List<Photo>, start: Int, isArchive: Boolean,
-    onArchive: (Photo) -> Unit, onDelete: (Photo) -> Unit, onClose: () -> Unit,
-    onInfo: (Photo) -> Unit, onEdit: (Photo) -> Unit
+fun SwipePage(
+    photo: Photo, active: Boolean, isArchive: Boolean,
+    onArchive: (Photo) -> Unit, onDelete: (Photo) -> Unit, fit: Boolean = true
 ) {
-    if (photos.isEmpty()) { LaunchedEffect(Unit) { onClose() }; return }
-    val state = rememberPagerState(initialPage = start.coerceIn(0, photos.lastIndex)) { photos.size }
-    val haptic = LocalHapticFeedback.current
-    LaunchedEffect(state) {
-        snapshotFlow { state.currentPage }.collect { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
-    }
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
-        HorizontalPager(
-            state, Modifier.fillMaxSize(), pageSpacing = 16.dp,
-            key = { photos.getOrNull(it)?.key ?: it },
-            flingBehavior = PagerDefaults.flingBehavior(state, snapAnimationSpec = spring(0.72f, Spring.StiffnessMediumLow))
-        ) { page ->
-            val off = (state.currentPage - page) + state.currentPageOffsetFraction
-            Box(Modifier.fillMaxSize().graphicsLayer {
-                val a = abs(off).coerceIn(0f, 1f)
-                scaleX = 1f - 0.12f * a; scaleY = scaleX
-                alpha = 1f - 0.45f * a
-                rotationY = off * -14f
-                cameraDistance = 14f * density
-            }) {
-                SwipePage(photos[page], page == state.currentPage, isArchive, onArchive, onDelete)
-            }
-        }
-        photos.getOrNull(state.currentPage)?.let { cur ->
-            val d = Instant.ofEpochSecond(cur.added).atZone(ZoneId.systemDefault()).toLocalDate()
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 40.dp),
-                Arrangement.SpaceBetween, Alignment.CenterVertically
-            ) {
-                Box(
-                    Modifier.bounceClick(onClose).size(42.dp).glass(CircleShape, Color.White, 0.16f, 0.dp),
-                    Alignment.Center
-                ) { Text("✕", color = Color.White, fontSize = 15.sp) }
-                // Date in the same "sans + italic serif" pairing as the reference typography
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()), color = Color.White,
-                        fontFamily = UiSans, fontWeight = FontWeight.Light, fontSize = 24.sp)
-                    Text(" ${d.dayOfMonth} ${d.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())}.", color = Color.White,
-                        fontFamily = Display, fontStyle = FontStyle.Italic, fontSize = 24.sp)
-                }
-                Spacer(Modifier.size(42.dp))
-            }
-        }
-        photos.getOrNull(state.currentPage)?.let { cur ->
-            Row(
-                Modifier.align(Alignment.BottomCenter).padding(bottom = 36.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                GlassPill("Details") { onInfo(cur) }
-                if (!cur.isVideo) GlassPill("Edit") { onEdit(cur) }
-            }
-        }
-    }
-}
-
-@Composable
-fun SwipePage(photo: Photo, active: Boolean, isArchive: Boolean, onArchive: (Photo) -> Unit, onDelete: (Photo) -> Unit) {
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     val off = remember { Animatable(0f) }
-    val th = with(LocalDensity.current) { 150.dp.toPx() }
+    val th = with(LocalDensity.current) { 110.dp.toPx() }
     val bouncy = spring<Float>(Spring.DampingRatioMediumBouncy, Spring.StiffnessLow)
 
     // haptic tick when crossing the commit threshold
@@ -483,11 +196,11 @@ fun SwipePage(photo: Photo, active: Boolean, isArchive: Boolean, onArchive: (Pho
             alpha = 1f - 0.4f * p
         }
         if (photo.isVideo) VideoPlayer(photo, active, lay)
-        else AsyncImage(photo.uri, null, contentScale = ContentScale.Fit, modifier = lay)
-        HintPill(if (isArchive) "↑  Restore" else "↑  Archive", Color.White, Modifier.align(Alignment.TopCenter).padding(top = 110.dp)) {
+        else AsyncImage(photo.uri, null, contentScale = if (fit) ContentScale.Fit else ContentScale.Crop, modifier = lay)
+        HintPill(if (isArchive) "↑  Restore" else "↑  Archive", Color.White, Modifier.align(Alignment.TopCenter).padding(top = 40.dp)) {
             (-off.value / th).coerceIn(0f, 1f)
         }
-        HintPill("↓  Delete", Color(0xFFFF3B30), Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp)) {
+        HintPill("↓  Delete", Color(0xFFFF3B30), Modifier.align(Alignment.BottomCenter).padding(bottom = 84.dp)) {
             (off.value / th).coerceIn(0f, 1f)
         }
     }

@@ -120,7 +120,7 @@ class MainActivity : ComponentActivity() {
         if (!hasAll()) runCatching { permLauncher.launch(allPerms) }
 
         setContent {
-            MaterialTheme(colorScheme = lightColorScheme()) {
+            MaterialTheme(colorScheme = OledScheme, shapes = ExpressiveShapes) {
               val report = crash
               if (report != null) {
                 CrashScreen(report) { CrashReporter.clear(this@MainActivity); crash = null }

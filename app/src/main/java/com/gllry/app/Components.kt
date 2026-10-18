@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
@@ -43,10 +44,10 @@ import kotlin.random.Random
 // To match exactly, drop instrument_serif.ttf / inter.ttf into res/font and
 // replace these two lines with FontFamily(Font(R.font.instrument_serif)) etc.
 val Display: FontFamily = FontFamily.Serif
-val UiSans: FontFamily = FontFamily.SansSerif
-val PoolBlue = Color(0xFF7D93FF)
+val UiSans: FontFamily get() = AppFonts.ui
+val PoolBlue = Color(0xFFD0BCFF)
 val Ink = Color(0xFFF2F2F7)
-val Paper = Color(0xFF0B0B12)
+val Paper = Color.Black
 
 // ---- Bounce + haptic press -----------------------------------------------------------
 fun Modifier.bounceClick(onClick: () -> Unit): Modifier = composed {
@@ -95,17 +96,27 @@ fun Modifier.glass(
         shape
     )
 
-// ---- Soft aurora background (blurred colour orbs behind the glass) -------------------
+// ---- Pure-black OLED backdrop: faint warm/cool glows + film grain (as in the reference) ----
 @Composable
-fun Speckle() {
-    Box(Modifier.fillMaxSize().background(Paper)) {
-        Orb(Color(0xFF3D5AFE).copy(alpha = 0.45f), 360, Modifier.align(Alignment.TopStart).offset((-110).dp, (-90).dp))
-        Orb(Color(0xFF7C4DFF).copy(alpha = 0.40f), 300, Modifier.align(Alignment.CenterEnd).offset(110.dp, (-40).dp))
-        Orb(Color(0xFF00B8D4).copy(alpha = 0.22f), 340, Modifier.align(Alignment.BottomStart).offset((-90).dp, 110.dp))
-    }
+fun Backdrop() {
+    val dots = remember { val r = Random(11); List(520) { Triple(r.nextFloat(), r.nextFloat(), r.nextFloat()) } }
+    Box(
+        Modifier.fillMaxSize().background(Color.Black).drawBehind {
+            val w = size.width; val h = size.height
+            drawCircle(
+                Brush.radialGradient(listOf(Color(0x40401010), Color.Transparent), Offset(w * 0.98f, h * 0.42f), w * 0.9f),
+                w * 0.9f, Offset(w * 0.98f, h * 0.42f)
+            )
+            drawCircle(
+                Brush.radialGradient(listOf(Color(0x3314223A), Color.Transparent), Offset(w * 0.02f, h * 0.72f), w * 0.8f),
+                w * 0.8f, Offset(w * 0.02f, h * 0.72f)
+            )
+            dots.forEach { (x, y, a) ->
+                drawCircle(Color.White.copy(alpha = 0.03f + 0.05f * a), 0.7f + a * 0.8f, Offset(x * w, y * h))
+            }
+        }
+    )
 }
 
 @Composable
-private fun Orb(c: Color, size: Int, m: Modifier) {
-    Box(m.size(size.dp).blur(80.dp, BlurredEdgeTreatment.Unbounded).background(c, CircleShape))
-}
+fun Speckle() = Backdrop()

@@ -41,7 +41,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -78,7 +80,12 @@ private class SquashShape(val rx: Float, val ry: Float) : Shape {
 // Hold the "Gllry" title for 3 seconds -> opens the Stack style
 // ======================================================================================
 @Composable
-fun HoldTitle(onTrigger: () -> Unit) {
+fun HoldTitle(
+    onTrigger: () -> Unit,
+    fontFamily: FontFamily = Display,
+    fontSize: TextUnit = 30.sp,
+    align: Alignment.Horizontal = Alignment.CenterHorizontally
+) {
     val haptic = LocalHapticFeedback.current
     var holding by remember { mutableStateOf(false) }
     val prog = remember { Animatable(0f) }
@@ -91,9 +98,9 @@ fun HoldTitle(onTrigger: () -> Unit) {
             prog.animateTo(0f, spring(Spring.DampingRatioMediumBouncy))
         }
     }
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(horizontalAlignment = align) {
         Text(
-            "Gllry", fontFamily = Display, fontSize = 30.sp, color = Ink, letterSpacing = (-0.5).sp,
+            "Gllry", fontFamily = fontFamily, fontSize = fontSize, color = Ink, letterSpacing = (-0.5).sp,
             modifier = Modifier
                 .graphicsLayer { val sc = 1f + 0.14f * prog.value; scaleX = sc; scaleY = sc }
                 .pointerInput(Unit) {
@@ -112,7 +119,7 @@ fun HoldTitle(onTrigger: () -> Unit) {
         )
         Box(
             Modifier.padding(top = 4.dp).width(54.dp).height(2.dp)
-                .graphicsLayer { scaleX = prog.value; alpha = prog.value }
+                .graphicsLayer { scaleX = prog.value.coerceAtLeast(0f); alpha = prog.value.coerceIn(0f, 1f) }
                 .background(PoolBlue, RoundedCornerShape(50))
         )
     }
@@ -205,7 +212,7 @@ fun StackGallery(vm: GalleryVM, isDefault: Boolean, onToggleDefault: () -> Unit,
         // light studio background (turns white in the pile)
         Box(
             Modifier.fillMaxSize().drawBehind {
-                val pl = pileS.value
+                val pl = pileS.value.coerceIn(0f, 1f)
                 drawRect(
                     Brush.verticalGradient(
                         listOf(lerp(Color(0xFFF3F3F3), Color.White, pl), lerp(Color(0xFFDADADA), Color.White, pl))
@@ -284,6 +291,8 @@ fun StackGallery(vm: GalleryVM, isDefault: Boolean, onToggleDefault: () -> Unit,
                             .graphicsLayer {
                                 val s = stackS.value
                                 val pl = pileS.value
+                                val sc = s.coerceIn(0f, 1f)
+                                val pc = pl.coerceIn(0f, 1f)
                                 val d = i - pos.value
                                 var ty = mix(d * H, y0 + d * strip, s)
                                 var sx = mix(1f, SIDE, s)
@@ -296,7 +305,7 @@ fun StackGallery(vm: GalleryVM, isDefault: Boolean, onToggleDefault: () -> Unit,
                                     tx = (rnd[0] - 0.5f) * W * 0.62f * pl
                                     sx = mix(sx, ps * (0.75f + 0.5f * rnd[3]), pl)
                                     sy = mix(sy, ps, pl)
-                                    if (d < -3.3f || d > 6.2f) al = pl
+                                    if (d < -3.3f || d > 6.2f) al = pc
                                 }
                                 transformOrigin = TransformOrigin(0.5f, 0f)
                                 translationX = tx
@@ -304,10 +313,10 @@ fun StackGallery(vm: GalleryVM, isDefault: Boolean, onToggleDefault: () -> Unit,
                                 scaleX = sx
                                 scaleY = sy
                                 alpha = al
-                                val rr = cornerPx * maxOf(s, pl * 0.6f)
+                                val rr = cornerPx * maxOf(sc, pc * 0.6f)
                                 shape = SquashShape(rr / sx, rr / sy)
                                 clip = true
-                                shadowElevation = shadowPx * maxOf(s, pl)
+                                shadowElevation = shadowPx * maxOf(sc, pc)
                             }
                             .background(Color(0xFF111111))
                     ) {
