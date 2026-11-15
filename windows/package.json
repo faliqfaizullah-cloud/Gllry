@@ -1,0 +1,38 @@
+{
+  "name": "gllry",
+  "version": "2.1.0",
+  "description": "Gllry - gallery for Windows",
+  "main": "main.js",
+  "author": "Gllry",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never"
+  },
+  "dependencies": {
+    "exifr": "^7.1.3"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.gllry.desktop",
+    "productName": "Gllry",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "renderer/**/*", "fonts/**/*", "build/icon.png", "package.json"],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Gllry-Setup-${version}.${ext}"
+    },
+    "portable": { "artifactName": "Gllry-${version}-portable.${ext}" }
+  }
+}

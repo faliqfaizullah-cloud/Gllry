@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' gllry: data: blob:; img-src 'self' gllry: data: blob: http: https:; media-src 'self' gllry: blob: http: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' gllry: http: https:;">
+<title>Gllry</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="backdrop"></div>
+<div id="drag"></div>
+
+<main id="app">
+  <div id="scroller"></div>
+
+  <header id="top">
+    <div class="titleblock">
+      <div id="title" class="title">Gllry<i id="holdbar"></i></div>
+      <div id="today" class="pixel"></div>
+    </div>
+    <button id="plus" class="gbtn" aria-label="Add"><span class="glyph plus"></span></button>
+    <div id="menu" class="menu hidden">
+      <button class="pill" data-act="folder">Add folder…</button>
+      <button class="pill" data-act="import">Import photos &amp; videos…</button>
+      <button class="pill" data-act="refresh">Refresh</button>
+    </div>
+  </header>
+
+  <div id="fade"></div>
+
+  <nav id="bar">
+    <div id="nav" class="glass navpill">
+      <i id="indicator"></i>
+      <button class="cell" data-tab="home" aria-label="Home"><svg viewBox="0 0 24 24"><path d="M12 2.9 22 12h-2.6v8.2h-4.8v-5.6H9.4v5.6H4.6V12H2z"/></svg></button>
+      <button class="cell" data-tab="calendar" aria-label="Calendar"><svg viewBox="0 0 24 24" class="stroke"><rect x="3" y="4.6" width="18" height="16" rx="3.4"/><path d="M3 9.6h18M8 2.8v3.8M16 2.8v3.8"/><g class="fill"><circle cx="7.4" cy="13.4" r="1.1"/><circle cx="12" cy="13.4" r="1.1"/><circle cx="16.6" cy="13.4" r="1.1"/><circle cx="7.4" cy="17" r="1.1"/><circle cx="12" cy="17" r="1.1"/></g></svg></button>
+    </div>
+    <div id="search" class="glass searchpill">
+      <svg viewBox="0 0 24 24" class="stroke"><circle cx="10.4" cy="10.4" r="6.5"/><path d="M15.2 15.2 21 21"/></svg>
+      <input id="q" placeholder="Search Here" autocomplete="off" spellcheck="false">
+    </div>
+  </nav>
+</main>
+
+<!-- viewer -->
+<section id="viewer" class="overlay hidden">
+  <div class="rail"></div>
+  <header class="vhead">
+    <div class="titleblock"><div class="title">Gllry</div><div class="pixel vdate"></div></div>
+    <button id="vclose" class="gbtn" aria-label="Close"><span class="glyph close"></span></button>
+  </header>
+  <div class="vcardwrap">
+    <div id="vcard">
+      <div id="vstage"></div>
+      <div class="hint up" id="hintUp">↑&nbsp; Archive</div>
+      <div class="hint down" id="hintDown">↓&nbsp; Delete</div>
+      <div class="vactions">
+        <button class="pill" id="bInfo">Details</button>
+        <button class="pill" id="bEdit">Edit</button>
+      </div>
+      <button class="navbtn prev" id="vprev" aria-label="Previous">‹</button>
+      <button class="navbtn next" id="vnext" aria-label="Next">›</button>
+    </div>
+  </div>
+  <div class="vinfo">
+    <div class="vtitle"><svg viewBox="0 0 24 24" class="folder"><path d="M2 6.4A2.4 2.4 0 0 1 4.4 4h4.2c.7 0 1.3.3 1.8.8L12 6.4h7.6A2.4 2.4 0 0 1 22 8.8V18a2.4 2.4 0 0 1-2.4 2.4H4.4A2.4 2.4 0 0 1 2 18z"/></svg><span id="vname"></span></div>
+    <div class="script" id="vsub"></div>
+    <div class="script more" id="vmore"></div>
+  </div>
+  <div id="vthumbs"></div>
+</section>
+
+<!-- details -->
+<section id="details" class="overlay hidden"><div class="sheet glass"><div id="dbody"></div></div></section>
+
+<!-- editor -->
+<section id="editor" class="overlay hidden">
+  <header class="ehead">
+    <button id="eclose" class="gbtn" aria-label="Close"><span class="glyph close"></span></button>
+    <div class="etitle">Edit</div>
+    <button id="esave" class="savebtn">Save copy</button>
+  </header>
+  <div class="ecanvaswrap"><canvas id="ecanvas"></canvas></div>
+  <div class="epanel glass">
+    <div class="tabs">
+      <button class="chip on" data-etab="crop">Crop</button>
+      <button class="chip" data-etab="adjust">Adjust</button>
+      <button class="chip" data-etab="filters">Filters</button>
+    </div>
+    <div id="ebody"></div>
+  </div>
+</section>
+
+<!-- stack style -->
+<section id="stack" class="hidden">
+  <div id="stackcards"></div>
+  <div id="stackchrome">
+    <button id="sexit" class="schip round" aria-label="Back">✕</button>
+    <button id="sdefault" class="schip">Make default</button>
+  </div>
+</section>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="js/core.js"></script>
+<script src="js/home.js"></script>
+<script src="js/viewer.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/stack.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
