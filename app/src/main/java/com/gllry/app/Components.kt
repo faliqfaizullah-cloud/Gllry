@@ -1,5 +1,7 @@
 package com.gllry.app
 
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -68,15 +70,39 @@ fun Modifier.bounceClick(onClick: () -> Unit): Modifier = composed {
 }
 
 // ---- Springy entrance --------------------------------------------------------------
-fun Modifier.popIn(delayMs: Long = 0): Modifier = composed {
-    val s = remember { Animatable(0.6f) }
-    val a = remember { Animatable(0f) }
+object PopSeen { val keys = HashSet<Any>() }
+
+/** springy entrance; with a seenKey it plays only once, so scrolling back never re-animates (smoother) */
+fun Modifier.popIn(delayMs: Long = 0, seenKey: Any? = null): Modifier = composed {
+    val seen = seenKey != null && PopSeen.keys.contains(seenKey)
+    val s = remember { Animatable(if (seen) 1f else 0.6f) }
+    val a = remember { Animatable(if (seen) 1f else 0f) }
     LaunchedEffect(Unit) {
-        delay(delayMs)
-        launch { a.animateTo(1f) }
-        s.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow))
+        if (!seen) {
+            if (seenKey != null) PopSeen.keys.add(seenKey)
+            delay(delayMs)
+            launch { a.animateTo(1f) }
+            s.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow))
+        }
     }
     graphicsLayer { scaleX = s.value; scaleY = s.value; alpha = a.value }
+}
+
+/** tap + long-press with a springy press, used by the selectable photo tiles */
+@OptIn(ExperimentalFoundationApi::class)
+fun Modifier.bounceSelect(onLongClick: () -> Unit, onClick: () -> Unit): Modifier = composed {
+    val haptic = LocalHapticFeedback.current
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        if (pressed) 0.94f else 1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), label = "sel-press"
+    )
+    this.graphicsLayer { scaleX = scale; scaleY = scale }
+        .combinedClickable(
+            interactionSource = src, indication = null,
+            onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onLongClick() },
+            onClick = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick() }
+        )
 }
 
 // ---- Glassmorphism ------------------------------------------------------------------

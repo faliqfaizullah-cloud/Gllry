@@ -47,7 +47,7 @@ import kotlin.math.abs
 @Composable
 fun GllryApp(
     vm: GalleryVM, hasPermission: Boolean, onRequest: () -> Unit, onDelete: (Photo) -> Unit,
-    onImport: () -> Unit, onRecord: () -> Unit
+    onImport: () -> Unit, onRecord: () -> Unit, onDeleteMany: (List<Photo>) -> Unit
 ) {
     val ctx = LocalContext.current
     var stackMode by remember { mutableStateOf(Store.stackDefault(ctx)) }
@@ -61,14 +61,17 @@ fun GllryApp(
     var detailsPhoto by remember { mutableStateOf<Photo?>(null) }
     var editOpen by remember { mutableStateOf(false) }
     var editPhoto by remember { mutableStateOf<Photo?>(null) }
+    var selected by remember { mutableStateOf(setOf<String>()) }
 
-    // later handlers win: search < viewer < details < editor
+    // later handlers win: selection < search < viewer < details < editor
+    BackHandler(selected.isNotEmpty()) { selected = emptySet() }
     BackHandler(searchOpen && !viewerOpen) { searchOpen = false; query = "" }
     BackHandler(viewerOpen) { viewerOpen = false }
     BackHandler(detailsOpen) { detailsOpen = false }
     BackHandler(editOpen) { editOpen = false }
 
     val index = remember(vm.all) { vm.all.associateBy { it.key } }
+    LaunchedEffect(index) { selected = selected.filter { it in index }.toSet() }   // drop items that were deleted
     val vphotos = remember(index, vm.archived, viewer) {
         viewer?.let { c -> c.keys.mapNotNull { index[it] }.filter { c.isArchive || it.archiveKey !in vm.archived } } ?: emptyList()
     }
@@ -78,13 +81,26 @@ fun GllryApp(
         if (!hasPermission) {
             PermissionGate(onRequest)
         } else {
-            val blurR by animateDpAsState(if (viewerOpen) 22.dp else 0.dp, Motion.spatial<Dp>(), label = "bg-blur")
+            val blurR by animateDpAsState(if (viewerOpen) 16.dp else 0.dp, Motion.spatial<Dp>(), label = "bg-blur")
             Box(Modifier.fillMaxSize().blur(blurR)) {
                 GalleryScreen(
                     vm = vm, tab = tab, onTab = { tab = it; searchOpen = false; query = "" },
                     searchOpen = searchOpen, onSearchOpen = { searchOpen = it }, query = query, onQuery = { query = it },
                     onOpen = { c -> viewer = c; viewerOpen = true },
-                    onSecret = { stackMode = true }, onImport = onImport, onRecord = onRecord
+                    onSecret = { stackMode = true }, onImport = onImport, onRecord = onRecord,
+                    selected = selected,
+                    onToggle = { p -> selected = if (p.key in selected) selected - p.key else selected + p.key },
+                    onToggleGroup = { list ->
+                        val keys = list.map { it.key }
+                        selected = if (keys.all { it in selected }) selected - keys.toSet() else selected + keys
+                    },
+                    onSelectAll = { list ->
+                        val keys = list.map { it.key }.toSet()
+                        selected = if (selected.containsAll(keys)) emptySet() else keys
+                    },
+                    onCancelSelect = { selected = emptySet() },
+                    onArchiveSelected = { vm.archiveMany(selected.mapNotNull { index[it] }, true); selected = emptySet() },
+                    onDeleteSelected = { onDeleteMany(selected.mapNotNull { index[it] }) }
                 )
             }
         }

@@ -1,5 +1,10 @@
 package com.gllry.app
 
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -155,40 +160,68 @@ fun GlassButton(size: Dp = 52.dp, onClick: () -> Unit, modifier: Modifier = Modi
 // building blocks
 // =====================================================================================
 @Composable
-fun SectionHeading(title: String, caption: String?) {
-    Column(Modifier.fillMaxWidth().rail().padding(top = 26.dp, bottom = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.padding(start = 4.dp).width(26.dp).height(1.dp).background(Color.White.copy(alpha = 0.9f)))
-            Spacer(Modifier.width(8.dp))
-            Text(title, color = Ink, fontFamily = UiSans, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+fun SectionHeading(title: String, caption: String?, action: String? = null, onAction: () -> Unit = {}) {
+    Row(Modifier.fillMaxWidth().rail().padding(top = 26.dp, bottom = 12.dp, end = 18.dp), verticalAlignment = Alignment.Bottom) {
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.padding(start = 4.dp).width(26.dp).height(1.dp).background(Color.White.copy(alpha = 0.9f)))
+                Spacer(Modifier.width(8.dp))
+                Text(title, color = Ink, fontFamily = UiSans, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+            }
+            if (caption != null) {
+                Text(
+                    "$caption ⁝", Modifier.padding(start = 38.dp, top = 2.dp),
+                    color = Color.White.copy(alpha = 0.35f), fontFamily = AppFonts.pixel, fontSize = 11.sp
+                )
+            }
         }
-        if (caption != null) {
-            Text(
-                "$caption ⁝", Modifier.padding(start = 38.dp, top = 2.dp),
-                color = Color.White.copy(alpha = 0.35f), fontFamily = AppFonts.pixel, fontSize = 11.sp
-            )
+        AnimatedVisibility(
+            action != null,
+            enter = fadeIn(Motion.effects<Float>()) + scaleIn(Motion.spatialFast<Float>(), initialScale = 0.8f),
+            exit = fadeOut(Motion.effects<Float>()) + scaleOut(targetScale = 0.8f)
+        ) {
+            Box(
+                Modifier.bounceClick(onAction).glass(RoundedCornerShape(50), Color.White, 0.14f, 0.dp)
+                    .padding(horizontal = 14.dp, vertical = 7.dp)
+            ) { Text(action ?: "", color = Color.White, fontFamily = UiSans, fontWeight = FontWeight.Medium, fontSize = 13.sp) }
         }
     }
 }
 
+/** photo tile: tap opens, long-press starts selecting; selected tiles shrink, round off and get a check */
 @Composable
-fun PhotoTile(p: Photo, w: Dp, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(18.dp)
+fun PhotoTile(p: Photo, w: Dp, selecting: Boolean, selected: Boolean, onClick: () -> Unit, onLong: () -> Unit) {
+    val scale by animateFloatAsState(if (selected) 0.9f else 1f, Motion.spatialFast<Float>(), label = "tile-sel")
+    val radius by animateDpAsState(if (selected) 30.dp else 18.dp, Motion.spatialFast<Dp>(), label = "tile-radius")
+    val shape = RoundedCornerShape(radius)
     Box(
-        Modifier.width(w).aspectRatio(0.82f).bounceClick(onClick).clip(shape)
-            .border(1.dp, Color.White.copy(alpha = 0.16f), shape)
+        Modifier.width(w).aspectRatio(0.82f).graphicsLayer { scaleX = scale; scaleY = scale }
+            .bounceSelect(onLong, onClick).clip(shape)
+            .border(if (selected) 2.dp else 1.dp, Color.White.copy(alpha = if (selected) 0.95f else 0.16f), shape)
     ) {
         AsyncImage(p.uri, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         if (p.isVideo) DurationTag(p.duration, Modifier.align(Alignment.BottomStart).padding(6.dp))
+        if (selecting) SelectBadge(selected, Modifier.align(Alignment.TopStart).padding(8.dp))
     }
 }
 
 @Composable
-private fun PhotoRow(row: List<Photo>, tile: Dp, onClick: (Photo) -> Unit) {
+private fun SelectBadge(selected: Boolean, modifier: Modifier) {
+    val sc by animateFloatAsState(if (selected) 1f else 0.85f, Motion.spatialFast<Float>(), label = "badge")
+    Box(
+        modifier.size(26.dp).graphicsLayer { scaleX = sc; scaleY = sc }.clip(CircleShape)
+            .background(if (selected) Color.White else Color.Black.copy(alpha = 0.3f))
+            .border(2.dp, Color.White.copy(alpha = 0.9f), CircleShape),
+        Alignment.Center
+    ) { if (selected) GlyphCheck(14.dp, Color(0xFF111111)) }
+}
+
+@Composable
+private fun PhotoRow(row: List<Photo>, tile: Dp, selected: Set<String>, onClick: (Photo) -> Unit, onLong: (Photo) -> Unit) {
     Row(
         Modifier.fillMaxWidth().rail().padding(start = 38.dp, end = 18.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) { row.forEach { p -> PhotoTile(p, tile) { onClick(p) } } }
+    ) { row.forEach { p -> PhotoTile(p, tile, selected.isNotEmpty(), p.key in selected, { onClick(p) }, { onLong(p) }) } }
 }
 
 @Composable
@@ -218,7 +251,7 @@ private fun FolderPhotos(photos: List<Photo>, modifier: Modifier) {
 fun AlbumFolder(a: Album, onClick: () -> Unit) {
     val w = 124.dp; val h = 122.dp; val pocketH = 76.dp
     val pocket = RoundedCornerShape(26.dp)
-    Box(Modifier.width(w).height(h).popIn().bounceClick(onClick)) {
+    Box(Modifier.width(w).height(h).popIn(0, "a_${a.key}").bounceClick(onClick)) {
         FolderPhotos(a.photos, Modifier.fillMaxSize())
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(pocketH).clip(pocket)) {
             // the same photos again, blurred, = frosted glass
@@ -263,7 +296,7 @@ private fun SelfiesRow(list: List<Photo>, onClick: (Int) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(22.dp)
     ) {
         itemsIndexed(list, key = { _, p -> p.key }) { i, p ->
-            Column(Modifier.popIn().bounceClick { onClick(i) }, horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.popIn(0, "p_${p.key}").bounceClick { onClick(i) }, horizontalAlignment = Alignment.CenterHorizontally) {
                 AsyncImage(
                     p.uri, null,
                     Modifier.size(66.dp, 94.dp).clip(RoundedCornerShape(topStart = 33.dp, topEnd = 33.dp, bottomStart = 14.dp, bottomEnd = 14.dp)),
@@ -286,32 +319,43 @@ private fun SelfiesRow(list: List<Photo>, onClick: (Int) -> Unit) {
 fun GalleryScreen(
     vm: GalleryVM, tab: Int, onTab: (Int) -> Unit,
     searchOpen: Boolean, onSearchOpen: (Boolean) -> Unit, query: String, onQuery: (String) -> Unit,
-    onOpen: (ViewerCtx) -> Unit, onSecret: () -> Unit, onImport: () -> Unit, onRecord: () -> Unit
+    onOpen: (ViewerCtx) -> Unit, onSecret: () -> Unit, onImport: () -> Unit, onRecord: () -> Unit,
+    selected: Set<String>, onToggle: (Photo) -> Unit, onToggleGroup: (List<Photo>) -> Unit, onSelectAll: (List<Photo>) -> Unit,
+    onCancelSelect: () -> Unit, onArchiveSelected: () -> Unit, onDeleteSelected: () -> Unit
 ) {
+    val selecting = selected.isNotEmpty()
     val photos = remember(vm.all, vm.archived) { vm.photosFor(ALL).sortedByDescending { it.time } }
     val albums = remember(vm.all, vm.archived) { buildAlbums(vm) }
     val groups = remember(photos) { groupByDay(photos) }
     val sw = LocalConfiguration.current.screenWidthDp.dp
     val tile = (sw - 38.dp - 18.dp - 24.dp) / 4
     var menuOpen by remember { mutableStateOf(false) }
+    val feed = remember(photos, query) { if (query.isNotBlank()) photos.filter { matches(it, query) } else photos }
+    val rowsByGroup = remember(groups) { groups.map { it.photos.chunked(4) } }
+    fun chip(list: List<Photo>): String? = if (selecting) (if (list.all { it.key in selected }) "Deselect" else "Select all") else null
 
     Box(Modifier.fillMaxSize()) {
         val searching = query.isNotBlank()
+        Crossfade(if (searching) 2 else tab, animationSpec = Motion.effects<Float>(), label = "feed") { mode ->
         when {
-            searching -> {
+            mode == 2 -> {
                 val res = remember(photos, query) { photos.filter { matches(it, query) } }
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 128.dp, bottom = 160.dp)) {
-                    item(key = "rh") { SectionHeading("Results", "${res.size} found") }
+                    item(key = "rh") { SectionHeading("Results", "${res.size} found", chip(res)) { onToggleGroup(res) } }
                     val rows = res.chunked(4)
                     items(rows.size, key = { "r$it" }) { r ->
-                        PhotoRow(rows[r], tile) { p -> onOpen(ViewerCtx("Results", res.map { it.key }, res.indexOf(p))) }
+                        PhotoRow(
+                            rows[r], tile, selected,
+                            { p -> if (selecting) onToggle(p) else onOpen(ViewerCtx("Results", res.map { it.key }, res.indexOf(p))) },
+                            { p -> onToggle(p) }
+                        )
                     }
                     if (res.isEmpty()) item(key = "none") {
                         Text("Nothing found", Modifier.rail().padding(start = 38.dp, top = 8.dp), color = Color.White.copy(0.5f), fontFamily = AppFonts.script, fontSize = 16.sp)
                     }
                 }
             }
-            tab == 1 -> CalendarFeed(photos, sw, onOpen)
+            mode == 1 -> CalendarFeed(photos, sw, onOpen)
             else -> {
                 val selfieList = remember(photos) { photos.filter { it.album.contains("selfie", true) } }
                 val portraits = remember(photos) { photos.filter { !it.isVideo && it.h > it.w && it.w > 0 }.take(12) }
@@ -324,14 +368,19 @@ fun GalleryScreen(
                         item(key = "people") { SelfiesRow(people.take(14)) { i -> onOpen(ViewerCtx(peopleTitle, people.map { it.key }, i)) } }
                     }
                     groups.forEachIndexed { gi, g ->
-                        item(key = "h$gi") { SectionHeading(g.title, g.caption) }
-                        val rows = g.photos.chunked(4)
+                        item(key = "h$gi") { SectionHeading(g.title, g.caption, chip(g.photos)) { onToggleGroup(g.photos) } }
+                        val rows = rowsByGroup[gi]
                         items(rows.size, key = { "g${gi}_$it" }) { r ->
-                            PhotoRow(rows[r], tile) { p -> onOpen(ViewerCtx(g.title, g.photos.map { it.key }, g.photos.indexOf(p))) }
+                            PhotoRow(
+                                rows[r], tile, selected,
+                                { p -> if (selecting) onToggle(p) else onOpen(ViewerCtx(g.title, g.photos.map { it.key }, g.photos.indexOf(p))) },
+                                { p -> onToggle(p) }
+                            )
                         }
                     }
                 }
             }
+        }
         }
 
         // fixed header (title + date + add)
@@ -340,15 +389,30 @@ fun GalleryScreen(
                 .background(Brush.verticalGradient(listOf(Color.Black, Color.Black.copy(alpha = 0.88f), Color.Transparent)))
                 .rail().padding(top = 44.dp, start = 34.dp, end = 18.dp, bottom = 26.dp)
         ) {
-            Column(Modifier.align(Alignment.CenterStart)) {
-                HoldTitle(onSecret, AppFonts.ui, 21.sp, Alignment.Start)
-                Text(
-                    LocalDate.now().format(fmtDate) + " ⁝", color = Color.White.copy(alpha = 0.85f),
-                    fontFamily = AppFonts.pixel, fontSize = 12.sp
-                )
-            }
-            GlassButton(52.dp, { menuOpen = !menuOpen }, Modifier.align(Alignment.CenterEnd)) {
-                if (menuOpen) GlyphClose() else GlyphPlus()
+            Crossfade(selecting, animationSpec = Motion.effects<Float>(), label = "hdr") { sel ->
+                Box(Modifier.fillMaxWidth()) {
+                    if (sel) {
+                        Column(Modifier.align(Alignment.CenterStart)) {
+                            Text(
+                                if (selected.size == 1) "1 selected" else "${selected.size} selected",
+                                color = Color.White, fontFamily = AppFonts.ui, fontWeight = FontWeight.Medium, fontSize = 21.sp
+                            )
+                            Text("tap photos to select ⁝", color = Color.White.copy(alpha = 0.85f), fontFamily = AppFonts.pixel, fontSize = 12.sp)
+                        }
+                        GlassButton(52.dp, onCancelSelect, Modifier.align(Alignment.CenterEnd)) { GlyphClose() }
+                    } else {
+                        Column(Modifier.align(Alignment.CenterStart)) {
+                            HoldTitle(onSecret, AppFonts.ui, 21.sp, Alignment.Start)
+                            Text(
+                                LocalDate.now().format(fmtDate) + " ⁝", color = Color.White.copy(alpha = 0.85f),
+                                fontFamily = AppFonts.pixel, fontSize = 12.sp
+                            )
+                        }
+                        GlassButton(52.dp, { menuOpen = !menuOpen }, Modifier.align(Alignment.CenterEnd)) {
+                            if (menuOpen) GlyphClose() else GlyphPlus()
+                        }
+                    }
+                }
             }
         }
         AnimatedVisibility(
@@ -359,6 +423,7 @@ fun GalleryScreen(
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 GlassPill("Import photos & videos") { menuOpen = false; onImport() }
                 GlassPill("Record video") { menuOpen = false; onRecord() }
+                GlassPill("Select photos") { menuOpen = false; feed.firstOrNull()?.let { onToggle(it) } }
             }
         }
 
@@ -367,10 +432,42 @@ fun GalleryScreen(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(150.dp)
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.92f))))
         )
-        BottomBar(
-            tab, { menuOpen = false; onTab(it) }, searchOpen, onSearchOpen, query, onQuery,
-            Modifier.align(Alignment.BottomCenter)
-        )
+        AnimatedVisibility(
+            !selecting, Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(Motion.spatial<IntOffset>()) { it } + fadeIn(Motion.effects<Float>()),
+            exit = slideOutVertically(Motion.spatial<IntOffset>()) { it } + fadeOut(Motion.effects<Float>())
+        ) {
+            BottomBar(tab, { menuOpen = false; onTab(it) }, searchOpen, onSearchOpen, query, onQuery, Modifier)
+        }
+        AnimatedVisibility(
+            selecting, Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(Motion.spatial<IntOffset>()) { it } + fadeIn(Motion.effects<Float>()),
+            exit = slideOutVertically(Motion.spatial<IntOffset>()) { it } + fadeOut(Motion.effects<Float>())
+        ) {
+            SelectionBar(
+                feed.isNotEmpty() && feed.all { it.key in selected },
+                { onSelectAll(feed) }, onArchiveSelected, onDeleteSelected
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectionBar(allSelected: Boolean, onAll: () -> Unit, onArchive: () -> Unit, onDelete: () -> Unit) {
+    Row(
+        Modifier.padding(bottom = 28.dp).glass(RoundedCornerShape(34.dp), Color(0xFF17171A), 0.62f, 10.dp).padding(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        SelAction(if (allSelected) "Select none" else "Select all", Color.White, Color.Transparent, onAll)
+        SelAction("Archive", Color.White, Color.Transparent, onArchive)
+        SelAction("Delete", Color(0xFFFF6A60), Color(0x38FF3B30), onDelete)
+    }
+}
+
+@Composable
+private fun SelAction(label: String, color: Color, bg: Color, onClick: () -> Unit) {
+    Box(Modifier.bounceClick(onClick).clip(RoundedCornerShape(28.dp)).background(bg).padding(horizontal = 22.dp, vertical = 14.dp)) {
+        Text(label, color = color, fontFamily = UiSans, fontWeight = FontWeight.Medium, fontSize = 14.sp)
     }
 }
 

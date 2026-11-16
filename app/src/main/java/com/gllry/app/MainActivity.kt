@@ -135,6 +135,14 @@ class MainActivity : ComponentActivity() {
                             deleteLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
                         }
                     },
+                    onDeleteMany = { list ->
+                        runCatching {
+                            if (list.isNotEmpty()) {
+                                val pi = MediaStore.createDeleteRequest(contentResolver, list.map { it.uri })
+                                deleteLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+                            }
+                        }
+                    },
                     onImport = {
                         runCatching {
                             picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))

@@ -99,6 +99,14 @@ class GalleryVM(app: Application) : AndroidViewModel(app) {
         DateWidget.updateAll(getApplication())
     }
 
+    /** archive / restore many at once (one save, one widget update) */
+    fun archiveMany(list: List<Photo>, on: Boolean) {
+        val keys = list.map { it.archiveKey }
+        archived = if (on) archived + keys else archived - keys.toSet()
+        Store.saveArchived(getApplication(), archived)
+        DateWidget.updateAll(getApplication())
+    }
+
     fun photosFor(key: String): List<Photo> = when (key) {
         ALL -> all.filter { it.archiveKey !in archived }
         ARCHIVE -> all.filter { it.archiveKey in archived }

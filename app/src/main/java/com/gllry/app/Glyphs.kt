@@ -66,3 +66,10 @@ fun GlyphFolder(size: Dp = 20.dp, color: Color = Color.White) = Canvas(Modifier.
     drawRoundRect(color, Offset(s * 0.06f, s * 0.18f), Size(s * 0.4f, s * 0.2f), CornerRadius(s * 0.08f))
     drawRoundRect(color, Offset(s * 0.06f, s * 0.28f), Size(s * 0.88f, s * 0.58f), CornerRadius(s * 0.14f))
 }
+
+@Composable
+fun GlyphCheck(size: Dp = 16.dp, color: Color = Color.White) = Canvas(Modifier.size(size)) {
+    val s = this.size.minDimension; val w = 2.6.dp.toPx()
+    drawLine(color, Offset(s * 0.2f, s * 0.54f), Offset(s * 0.42f, s * 0.76f), w, StrokeCap.Round)
+    drawLine(color, Offset(s * 0.42f, s * 0.76f), Offset(s * 0.82f, s * 0.26f), w, StrokeCap.Round)
+}
